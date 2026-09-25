@@ -1,0 +1,26 @@
+{
+  "category": "Props",
+  "triangles": 960,
+  "nanite": false,
+  "collision": "none",
+  "slots": {
+    "SignalLens": {
+      "base_color": [
+        0.2,
+        0.2,
+        0.2
+      ],
+      "roughness": 0.08,
+      "metallic": 0.0,
+      "emissive_color": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "emissive_intensity": 3000.0,
+      "use_night_switch": true,
+      "porosity": 0.0,
+      "wetness_response": 0.0
+    }
+  }
+}

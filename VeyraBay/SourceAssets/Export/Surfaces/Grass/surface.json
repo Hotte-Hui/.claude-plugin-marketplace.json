@@ -1,0 +1,8 @@
+{
+  "surface": "Grass",
+  "tile_meters": 3.0,
+  "uv_tiling": 0.3333333333333333,
+  "porosity": 0.8,
+  "wetness_response": 0.8,
+  "puddle_response": 0.0
+}

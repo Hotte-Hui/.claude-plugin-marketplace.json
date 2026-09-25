@@ -1,0 +1,8 @@
+{
+  "surface": "CastIron",
+  "tile_meters": 1.0,
+  "uv_tiling": 1.0,
+  "porosity": 0.1,
+  "wetness_response": 1.0,
+  "puddle_response": 0.0
+}

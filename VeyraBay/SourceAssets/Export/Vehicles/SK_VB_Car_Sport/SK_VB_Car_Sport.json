@@ -1,0 +1,173 @@
+{
+  "category": "Vehicles",
+  "skeletal": true,
+  "vehicle": "Sport",
+  "nanite": false,
+  "collision": "none",
+  "slots": {
+    "CarPaint": {
+      "base_color": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "roughness": 0.28,
+      "metallic": 0.55,
+      "porosity": 0.0,
+      "use_paint_data": true
+    },
+    "CarGlass": {
+      "base_color": [
+        0.02,
+        0.022,
+        0.025
+      ],
+      "roughness": 0.03,
+      "metallic": 0.0,
+      "porosity": 0.0
+    },
+    "CarPlastic": {
+      "base_color": [
+        0.03,
+        0.03,
+        0.032
+      ],
+      "roughness": 0.6,
+      "metallic": 0.0,
+      "porosity": 0.0
+    },
+    "CarGrille": {
+      "base_color": [
+        0.015,
+        0.015,
+        0.016
+      ],
+      "roughness": 0.45,
+      "metallic": 0.3,
+      "porosity": 0.0
+    },
+    "CarInterior": {
+      "base_color": [
+        0.035,
+        0.034,
+        0.033
+      ],
+      "roughness": 0.75,
+      "metallic": 0.0,
+      "porosity": 0.0,
+      "wetness_response": 0.0
+    },
+    "CarChrome": {
+      "base_color": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "roughness": 0.08,
+      "metallic": 1.0,
+      "porosity": 0.0
+    },
+    "CarHeadlight": {
+      "base_color": [
+        0.8,
+        0.8,
+        0.8
+      ],
+      "roughness": 0.05,
+      "metallic": 0.0,
+      "porosity": 0.0,
+      "wetness_response": 0.0,
+      "emissive_color": [
+        1.0,
+        0.95,
+        0.88
+      ],
+      "emissive_intensity": 20000.0,
+      "use_night_switch": true,
+      "light_channel": 3
+    },
+    "CarTaillight": {
+      "base_color": [
+        0.25,
+        0.01,
+        0.01
+      ],
+      "roughness": 0.1,
+      "metallic": 0.0,
+      "porosity": 0.0,
+      "wetness_response": 0.0,
+      "emissive_color": [
+        1.0,
+        0.02,
+        0.01
+      ],
+      "emissive_intensity": 4000.0,
+      "use_night_switch": true,
+      "light_channel": 2
+    },
+    "CarIndicatorLeft": {
+      "base_color": [
+        0.4,
+        0.2,
+        0.02
+      ],
+      "roughness": 0.1,
+      "metallic": 0.0,
+      "porosity": 0.0,
+      "wetness_response": 0.0,
+      "emissive_color": [
+        1.0,
+        0.4,
+        0.02
+      ],
+      "emissive_intensity": 6000.0,
+      "use_night_switch": true,
+      "light_channel": 4
+    },
+    "CarIndicatorRight": {
+      "base_color": [
+        0.4,
+        0.2,
+        0.02
+      ],
+      "roughness": 0.1,
+      "metallic": 0.0,
+      "porosity": 0.0,
+      "wetness_response": 0.0,
+      "emissive_color": [
+        1.0,
+        0.4,
+        0.02
+      ],
+      "emissive_intensity": 6000.0,
+      "use_night_switch": true,
+      "light_channel": 5
+    },
+    "TaxiSign": {
+      "base_color": [
+        0.9,
+        0.85,
+        0.6
+      ],
+      "roughness": 0.3,
+      "metallic": 0.0,
+      "porosity": 0.0,
+      "emissive_color": [
+        1.0,
+        0.85,
+        0.5
+      ],
+      "emissive_intensity": 800.0,
+      "use_night_switch": false
+    }
+  },
+  "spec": {
+    "length": 4.45,
+    "width": 1.92,
+    "clearance": 0.12,
+    "wheelbase": 2.62,
+    "radius": 0.34,
+    "wheel_width": 0.27,
+    "mass": 1450
+  }
+}

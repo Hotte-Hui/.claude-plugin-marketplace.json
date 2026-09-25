@@ -1,0 +1,49 @@
+{
+  "category": "Buildings",
+  "triangles": 1553,
+  "nanite": true,
+  "collision": "auto",
+  "puddle_response": 0.0,
+  "slots": {
+    "FacadeSandstone": {
+      "surface": "Sandstone",
+      "base_color": [
+        0.55,
+        0.47,
+        0.36
+      ],
+      "roughness": 0.8,
+      "metallic": 0.0
+    },
+    "DoorWood": {
+      "surface": "Wood",
+      "base_color": [
+        0.3,
+        0.18,
+        0.09
+      ],
+      "roughness": 0.6,
+      "metallic": 0.0
+    },
+    "PaintFasciaGreen": {
+      "base_color": [
+        0.03,
+        0.09,
+        0.07
+      ],
+      "roughness": 0.35,
+      "metallic": 0.0,
+      "porosity": 0.0
+    },
+    "WindowGlass": {
+      "shared_material": "Window",
+      "base_color": [
+        0.02,
+        0.025,
+        0.03
+      ],
+      "roughness": 0.04,
+      "metallic": 0.0
+    }
+  }
+}

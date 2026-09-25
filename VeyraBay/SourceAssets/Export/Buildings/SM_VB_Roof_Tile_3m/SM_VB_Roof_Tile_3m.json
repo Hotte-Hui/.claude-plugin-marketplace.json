@@ -1,0 +1,19 @@
+{
+  "category": "Buildings",
+  "triangles": 12,
+  "nanite": true,
+  "collision": "auto",
+  "puddle_response": 1.0,
+  "slots": {
+    "RoofGravel": {
+      "surface": "RoofGravel",
+      "base_color": [
+        0.2,
+        0.2,
+        0.19
+      ],
+      "roughness": 0.9,
+      "metallic": 0.0
+    }
+  }
+}

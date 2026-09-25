@@ -1,0 +1,86 @@
+{
+  "SW_VB_RainLight": {
+    "looping": true,
+    "seconds": 12.0
+  },
+  "SW_VB_RainHeavy": {
+    "looping": true,
+    "seconds": 12.0
+  },
+  "SW_VB_Wind": {
+    "looping": true,
+    "seconds": 16.0
+  },
+  "SW_VB_Sea": {
+    "looping": true,
+    "seconds": 24.0
+  },
+  "SW_VB_City": {
+    "looping": true,
+    "seconds": 20.0
+  },
+  "SW_VB_Birds": {
+    "looping": true,
+    "seconds": 20.0
+  },
+  "SW_VB_Crickets": {
+    "looping": true,
+    "seconds": 8.0
+  },
+  "SW_VB_Thunder_1": {
+    "looping": false,
+    "seconds": 7.0
+  },
+  "SW_VB_Thunder_2": {
+    "looping": false,
+    "seconds": 7.0
+  },
+  "SW_VB_Thunder_3": {
+    "looping": false,
+    "seconds": 7.0
+  },
+  "SW_VB_Engine": {
+    "looping": true,
+    "seconds": 3.0
+  },
+  "SW_VB_Tires": {
+    "looping": true,
+    "seconds": 4.0
+  },
+  "SW_VB_Horn": {
+    "looping": true,
+    "seconds": 1.0
+  },
+  "SW_VB_Indicator": {
+    "looping": true,
+    "seconds": 0.667
+  },
+  "SW_VB_Footstep_1": {
+    "looping": false,
+    "seconds": 0.3
+  },
+  "SW_VB_Footstep_2": {
+    "looping": false,
+    "seconds": 0.3
+  },
+  "SW_VB_Footstep_3": {
+    "looping": false,
+    "seconds": 0.3
+  },
+  "SW_VB_Footstep_4": {
+    "looping": false,
+    "seconds": 0.3
+  },
+  "SW_VB_CarDoor": {
+    "looping": false,
+    "seconds": 0.6
+  },
+  "SW_VB_UIClick": {
+    "looping": false,
+    "seconds": 0.05
+  },
+  "SW_VB_StreetMusic": {
+    "looping": true,
+    "seconds": 16.0
+  }
+}

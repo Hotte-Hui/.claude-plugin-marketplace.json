@@ -1,0 +1,19 @@
+{
+  "category": "Roads",
+  "triangles": 6132,
+  "nanite": true,
+  "collision": "none",
+  "puddle_response": 0.0,
+  "slots": {
+    "CastIron": {
+      "surface": "CastIron",
+      "base_color": [
+        0.28,
+        0.28,
+        0.29
+      ],
+      "roughness": 0.5,
+      "metallic": 0.85
+    }
+  }
+}

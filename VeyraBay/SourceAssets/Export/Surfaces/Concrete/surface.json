@@ -1,0 +1,8 @@
+{
+  "surface": "Concrete",
+  "tile_meters": 1.5,
+  "uv_tiling": 0.6666666666666666,
+  "porosity": 0.6,
+  "wetness_response": 1.0,
+  "puddle_response": 1.0
+}
