@@ -7,7 +7,7 @@ MENU_OWNER = "VeyraBayTools"
 ENTRIES = [
     ("VB_Setup", "1. Projekt einrichten",
      "Ordner, Master-Material, globale Parameter, Spielfigur und Dev-Karte automatisch anlegen.",
-     "import importlib, vb_common, vb_import, vb_materials_nature, vb_vehicles, vb_district, vb_setup; [importlib.reload(m) for m in (vb_common, vb_import, vb_materials_nature, vb_vehicles, vb_district, vb_setup)]; vb_setup.run()"),
+     "import importlib, vb_common, vb_import, vb_materials_nature, vb_materials_sky, vb_vehicles, vb_district, vb_setup; [importlib.reload(m) for m in (vb_common, vb_import, vb_materials_nature, vb_materials_sky, vb_vehicles, vb_district, vb_setup)]; vb_setup.run()"),
     ("VB_Import", "2. Assets importieren (Blender-Export)",
      "Alle Exporte aus SourceAssets/Export importieren (Nanite, Kollision, Materialien).",
      "import importlib, vb_common, vb_import; importlib.reload(vb_common); importlib.reload(vb_import); vb_import.run()"),

@@ -22,6 +22,7 @@ import vb_import
 import vb_district
 import vb_vehicles
 import vb_materials_nature
+import vb_materials_sky
 
 MEL = unreal.MaterialEditingLibrary
 
@@ -1115,6 +1116,7 @@ def run():
         instances = create_material_instances(master)
         build_window_material(mpc)
         vb_materials_nature.build_all(mpc)
+        vb_materials_sky.build_all(mpc)
 
         task.enter_progress_frame(1, "Blender-Assets importieren (SourceAssets/Export)")
         imported = vb_import.run(show_dialog=False)

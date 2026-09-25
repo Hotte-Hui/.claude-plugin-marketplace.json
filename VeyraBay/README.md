@@ -141,6 +141,14 @@ Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann
 - [ ] Passanten auf den Gehwegen, warten an roten Ampeln und gehen über die Zebrastreifen; nachts und bei Regen weniger
 - [ ] Debug: im Details-Panel von `TrafficManager` bzw. `CrowdManager` „Draw Debug“ an → Spuren/Ampelzustände/Gehwege sichtbar
 
+### 7f. Phase-6-Abnahme (Himmel und Wetter)
+
+- [ ] Schönwetter (F5 → Clear): einzelne Haufenwolken, die langsam mit dem Wind ziehen
+- [ ] F5 → Overcast / HeavyRain: Wolkendecke schließt sich; bei Regen fallen Regenschlieren, im Wind schräg
+- [ ] Nachts im Regen: Tropfen unter den Laternen sind hell beleuchtet
+- [ ] F5 → Storm: Blitze erhellen Himmel und Wolken von innen
+- [ ] Klare Nacht (F7 bis 23 Uhr, Clear): Sternenhimmel mit Milchstraße, Sterne wandern langsam; Wolken verdecken sie
+
 Bitte schick mir **Screenshots** (Tag, Nacht, Regen) und bei Problemen den **Output Log** (Fenster → Output Log).
 
 > **Ehrlicher Hinweis:** Alle Inhalte sind selbst erzeugt (Blender, prozedural) und in Blender gerendert geprüft. In Unreal wurde bisher nichts kompiliert oder getestet – das kann nur auf deinem PC passieren. Rechne beim ersten Kompilieren mit einzelnen Fehlern, die ich dann behebe.
@@ -164,6 +172,8 @@ blender -b --factory-startup --python Tools/Blender/surfaces/vb_water_textures.p
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_coast.py -- --out SourceAssets/Export
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_vegetation.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_Vegetation.blend
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_vehicles.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_Vehicles.blend
+blender -b --factory-startup --python Tools/Blender/surfaces/vb_sky_textures.py -- --out SourceAssets/Export
+blender -b --factory-startup --python Tools/Blender/assets/vb_asset_weather.py -- --out SourceAssets/Export
 # Vorschau des Stadtblocks (gleiche Logik wie in Unreal):
 blender -b --factory-startup --python Tools/Blender/assets/vb_preview_block.py -- --out block.png --view street --textures SourceAssets/Export
 blender -b --factory-startup --python Tools/Blender/assets/vb_preview_district.py -- --out promenade.png --textures SourceAssets/Export

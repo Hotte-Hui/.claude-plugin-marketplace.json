@@ -39,7 +39,7 @@ bl_info = {
     "category": "Import-Export",
 }
 
-CATEGORIES = ("Buildings", "Roads", "Props", "Vegetation", "Landmarks", "Terrain", "Vehicles")
+CATEGORIES = ("Buildings", "Roads", "Props", "Vegetation", "Landmarks", "Terrain", "Vehicles", "Sky")
 OBJECT_KEYS = {
     "vb_nanite": "nanite",
     "vb_collision": "collision",

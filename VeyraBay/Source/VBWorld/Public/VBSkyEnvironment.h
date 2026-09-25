@@ -11,6 +11,8 @@ class USkyLightComponent;
 class UVolumetricCloudComponent;
 class UExponentialHeightFogComponent;
 class UPostProcessComponent;
+class UStaticMeshComponent;
+class UMaterialInstanceDynamic;
 
 /**
  * Komplette physikalisch basierte Himmels- und Lichtumgebung in einem Actor:
@@ -94,6 +96,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Exposure")
 	float NightExposureBias = -1.f;
 
+	// --- Wettereffekte (Phase 6) -------------------------------------------------
+	/** Drei Regenschichten um die Kamera (nah / mittel / fern), Material M_VB_Rain. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TArray<TObjectPtr<UStaticMeshComponent>> RainLayers;
+
+	/** Sternenhimmel (Kuppel um die Kamera, dreht mit der Erdrotation), Material M_VB_Stars. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> StarDome;
+
+	/** Fallgeschwindigkeit der Tropfen fuer die Neigung im Wind (m/s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather Effects")
+	float RainFallSpeed = 7.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather Effects")
+	float MaxRainTiltDegrees = 30.f;
+
+	/** Wolkenschicht: Unterkante und Dicke (km). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather Effects")
+	float CloudBottomKm = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weather Effects")
+	float CloudLayerHeightKm = 6.f;
+
 	// --- Nebel -------------------------------------------------------------
 	/** Leichter Kuestendunst bei klarem Wetter. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fog", meta = (ClampMin = "0.0"))
@@ -113,6 +138,8 @@ private:
 	FVBSkyInputs GatherPreviewInputs() const;
 	void ApplyInputs(const FVBSkyInputs& Inputs, bool bForce);
 	void EnsureCloudMaterial();
+	void SetupWeatherEffects();
+	void UpdateWeatherEffects(const FVBSkyInputs& Inputs);
 
 	static void SetLightDirection(UDirectionalLightComponent* Light, const FVector& TowardsLight, FVector& InOutLastApplied, float ThresholdDeg, bool bForce);
 
@@ -122,4 +149,8 @@ private:
 	float LastMoonIntensity = -1.f;
 	float LastSkyIntensity = -1.f;
 	float LastFogDensity = -1.f;
+	bool bEffectsReady = false;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> RainMaterials;
 };

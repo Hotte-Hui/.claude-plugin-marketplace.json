@@ -82,8 +82,17 @@ Legende: ✅ fertig · 🟡 umgesetzt, wartet auf Test am PC · ⏳ offen
 
 **Abnahme Phase 5:** README, Abschnitt 7e.
 
-## Phase 6 – Wetter + Tag/Nacht (Ausbau) ⏳
-Eigenes Wolkenmaterial (Bedeckung aus MPC), Niagara-Regen/Nebel/Sturm, Blitze mit Licht und Donner, Scheibenwischer, Sterne, Mondphasen, MegaLights für viele Stadtlichter.
+## Phase 6 – Wetter + Tag/Nacht (Ausbau) 🟡
+
+| Baustein | Status |
+|---|---|
+| `M_VB_Clouds` (Volume): Bedeckung aus der MPC, Wolken ziehen mit dem Wind, flache Haufenwolken bei Schönwetter, hohe geschlossene Decke bei Sturm, Gewitter leuchten von innen | 🟡 |
+| Regen: drei Schichten um die Kamera (`M_VB_Rain`, beleuchtet von Sonne, Himmel und Laternen), Neigung im Wind, Deckkraft = Regenstärke | 🟡 |
+| Sternenhimmel: 9 000 Sterne mit Farbtemperatur + Milchstraße (`T_VB_Sky_D`), dreht um den Himmelspol, von Wolken/Nebel verdeckt | 🟡 |
+| Blitze: Himmelslicht-Blitz (Phase 1) + Wolkenleuchten | 🟡 |
+| Offen: Donner (Phase 9 Audio), Scheibenwischer + Tropfen auf der Scheibe, Mondphasen, Niagara-Spritzer, MegaLights-Test | ⏳ |
+
+**Abnahme Phase 6:** README, Abschnitt 7f.
 
 ## Phase 7 – Streaming + Open World ⏳
 Alle 12 Bezirke als Blockout, World-Partition-Zellen, Data Layers für Events, HLOD für die Fernsicht, Autobahnnetz.

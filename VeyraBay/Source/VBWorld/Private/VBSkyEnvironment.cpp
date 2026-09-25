@@ -10,13 +10,50 @@
 #include "Components/PostProcessComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/SkyLightComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Components/VolumetricCloudComponent.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 
 namespace VBSky
 {
 	static const TCHAR* DefaultCloudMaterial = TEXT("/Engine/EngineSky/VolumetricClouds/m_SimpleVolumetricCloud_Inst.m_SimpleVolumetricCloud_Inst");
+	// Eigene Assets (vom Setup-Skript erzeugt / importiert); fehlen sie, bleibt der Engine-Standard
+	static const TCHAR* CloudMaterial = TEXT("/Game/VeyraBay/Materials/Sky/M_VB_Clouds.M_VB_Clouds");
+	static const TCHAR* RainMaterial = TEXT("/Game/VeyraBay/Materials/Sky/M_VB_Rain.M_VB_Rain");
+	static const TCHAR* StarMaterial = TEXT("/Game/VeyraBay/Materials/Sky/M_VB_Stars.M_VB_Stars");
+	static const TCHAR* RainMesh = TEXT("/Game/VeyraBay/Environment/Sky/SM_VB_RainCylinder/SM_VB_RainCylinder.SM_VB_RainCylinder");
+	static const TCHAR* DomeMesh = TEXT("/Game/VeyraBay/Environment/Sky/SM_VB_SkyDome/SM_VB_SkyDome.SM_VB_SkyDome");
+
+	// Regenschichten: Radius, Hoehe (m), Kachelung U/V, Fallgeschwindigkeit (UV/s), Deckkraft
+	struct FRainLayer { float Radius; float Height; float TilingU; float TilingV; float Speed; float Opacity; };
+	static const FRainLayer RainLayerSetup[3] = {
+		{ 3.5f, 10.f, 6.f, 2.f, 1.6f, 0.55f },
+		{ 9.f, 22.f, 14.f, 3.5f, 1.1f, 0.45f },
+		{ 22.f, 40.f, 30.f, 5.f, 0.7f, 0.35f },
+	};
+
+	static UStaticMeshComponent* MakeEffectMesh(AActor* Owner, USceneComponent* Parent, const TCHAR* Name)
+	{
+		UStaticMeshComponent* Mesh = Owner->CreateDefaultSubobject<UStaticMeshComponent>(Name);
+		Mesh->SetupAttachment(Parent);
+		Mesh->SetUsingAbsoluteLocation(true);
+		Mesh->SetUsingAbsoluteRotation(true);
+		Mesh->SetUsingAbsoluteScale(true);
+		Mesh->SetMobility(EComponentMobility::Movable);
+		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Mesh->SetGenerateOverlapEvents(false);
+		Mesh->SetCastShadow(false);
+		Mesh->bAffectDistanceFieldLighting = false;
+		Mesh->bAffectDynamicIndirectLighting = false;
+		Mesh->SetVisibility(false);
+		Mesh->SetHiddenInGame(false);
+		return Mesh;
+	}
 
 	static bool ChangedEnough(float NewValue, float OldValue)
 	{
@@ -114,6 +151,15 @@ AVBSkyEnvironment::AVBSkyEnvironment()
 	PP.MotionBlurMax = 3.f;
 	PP.bOverride_LensFlareIntensity = true;
 	PP.LensFlareIntensity = 0.f;
+
+	// --- Regen und Sterne ---------------------------------------------------------
+	static const TCHAR* RainNames[3] = { TEXT("RainNear"), TEXT("RainMid"), TEXT("RainFar") };
+	for (const TCHAR* Name : RainNames)
+	{
+		RainLayers.Add(VBSky::MakeEffectMesh(this, Root, Name));
+	}
+	StarDome = VBSky::MakeEffectMesh(this, Root, TEXT("StarDome"));
+	StarDome->SetBoundsScale(1.f);
 }
 
 void AVBSkyEnvironment::OnConstruction(const FTransform& Transform)
@@ -138,24 +184,132 @@ void AVBSkyEnvironment::BeginPlay()
 	Super::BeginPlay();
 
 	EnsureCloudMaterial();
+	SetupWeatherEffects();
 	ApplyInputs(GatherRuntimeInputs(), /*bForce*/ true);
 }
 
 void AVBSkyEnvironment::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	ApplyInputs(GatherRuntimeInputs(), /*bForce*/ false);
+	const FVBSkyInputs Inputs = GatherRuntimeInputs();
+	ApplyInputs(Inputs, /*bForce*/ false);
+	UpdateWeatherEffects(Inputs);
 }
 
 void AVBSkyEnvironment::EnsureCloudMaterial()
 {
-	if (Clouds && !Clouds->Material)
+	if (!Clouds)
 	{
-		if (UMaterialInterface* CloudMaterial = LoadObject<UMaterialInterface>(nullptr, VBSky::DefaultCloudMaterial, nullptr, LOAD_NoWarn | LOAD_Quiet))
+		return;
+	}
+	// Eigenes Wolkenmaterial (Bedeckung, Wind und Gewitter aus der MPC) bevorzugen
+	UMaterialInterface* Wanted = LoadObject<UMaterialInterface>(nullptr, VBSky::CloudMaterial, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (!Wanted && !Clouds->Material)
+	{
+		Wanted = LoadObject<UMaterialInterface>(nullptr, VBSky::DefaultCloudMaterial, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	}
+	if (Wanted && Clouds->Material != Wanted)
+	{
+		Clouds->SetMaterial(Wanted);
+	}
+	if (Wanted && Wanted->GetPathName().StartsWith(TEXT("/Game/")))
+	{
+		Clouds->SetLayerBottomAltitude(CloudBottomKm);
+		Clouds->SetLayerHeight(CloudLayerHeightKm);
+	}
+}
+
+void AVBSkyEnvironment::SetupWeatherEffects()
+{
+	UStaticMesh* Cylinder = LoadObject<UStaticMesh>(nullptr, VBSky::RainMesh, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	UStaticMesh* Dome = LoadObject<UStaticMesh>(nullptr, VBSky::DomeMesh, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	UMaterialInterface* Rain = LoadObject<UMaterialInterface>(nullptr, VBSky::RainMaterial, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	UMaterialInterface* Stars = LoadObject<UMaterialInterface>(nullptr, VBSky::StarMaterial, nullptr, LOAD_NoWarn | LOAD_Quiet);
+
+	RainMaterials.Reset();
+	if (Cylinder && Rain)
+	{
+		for (int32 Index = 0; Index < RainLayers.Num(); ++Index)
 		{
-			Clouds->Material = CloudMaterial;
-			Clouds->MarkRenderStateDirty();
+			const VBSky::FRainLayer& Layer = VBSky::RainLayerSetup[Index];
+			UStaticMeshComponent* Mesh = RainLayers[Index];
+			Mesh->SetStaticMesh(Cylinder);
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Rain, this);
+			MID->SetScalarParameterValue(TEXT("TilingU"), Layer.TilingU);
+			MID->SetScalarParameterValue(TEXT("TilingV"), Layer.TilingV);
+			MID->SetScalarParameterValue(TEXT("FallSpeed"), Layer.Speed);
+			MID->SetScalarParameterValue(TEXT("OpacityScale"), Layer.Opacity);
+			Mesh->SetMaterial(0, MID);
+			Mesh->SetWorldScale3D(FVector(Layer.Radius, Layer.Radius, Layer.Height));
+			Mesh->SetTranslucentSortPriority(10 - Index);
+			RainMaterials.Add(MID);
 		}
+	}
+	if (Dome && Stars)
+	{
+		StarDome->SetStaticMesh(Dome);
+		StarDome->SetMaterial(0, Stars);
+		StarDome->SetWorldScale3D(FVector(10000.f));     // 1 m Radius -> 10 km
+		StarDome->SetTranslucentSortPriority(-100);      // hinter allem anderen Durchscheinenden
+	}
+	bEffectsReady = RainMaterials.Num() > 0 || StarDome->GetStaticMesh() != nullptr;
+}
+
+void AVBSkyEnvironment::UpdateWeatherEffects(const FVBSkyInputs& Inputs)
+{
+	UWorld* World = GetWorld();
+	if (!bEffectsReady || !World)
+	{
+		return;
+	}
+	const APlayerController* PC = World->GetFirstPlayerController();
+	if (!PC || !PC->PlayerCameraManager)
+	{
+		return;
+	}
+	const FVector Camera = PC->PlayerCameraManager->GetCameraLocation();
+
+	// Regen: Achse gegen die Fallrichtung (Tropfen fallen mit dem Wind schraeg)
+	const bool bRain = Inputs.Weather.RainIntensity > 0.01f && RainMaterials.Num() > 0;
+	FVector WindDirection = FVector::ForwardVector;
+	if (const UVBWeatherSubsystem* Weather = World->GetSubsystem<UVBWeatherSubsystem>())
+	{
+		WindDirection = Weather->GetWindDirection();
+	}
+	const float WindSpeed = 2.f + Inputs.Weather.WindStrength * 16.f;
+	const float Tilt = FMath::Min(FMath::RadiansToDegrees(FMath::Atan2(WindSpeed, RainFallSpeed)), MaxRainTiltDegrees);
+	const FVector Axis = (FVector::UpVector * FMath::Cos(FMath::DegreesToRadians(Tilt)) - WindDirection.GetSafeNormal2D() * FMath::Sin(FMath::DegreesToRadians(Tilt))).GetSafeNormal();
+	const FQuat Rotation = FQuat::FindBetweenNormals(FVector::UpVector, Axis);
+	for (int32 Index = 0; Index < RainLayers.Num(); ++Index)
+	{
+		UStaticMeshComponent* Mesh = RainLayers[Index];
+		if (Mesh->IsVisible() != bRain)
+		{
+			Mesh->SetVisibility(bRain);
+		}
+		if (bRain)
+		{
+			// Zylinder-Pivot unten: so verschieben, dass die Kamera etwa auf halber Hoehe sitzt
+			const float Height = VBSky::RainLayerSetup[Index].Height * 100.f;
+			Mesh->SetWorldLocationAndRotation(Camera - Axis * (Height * 0.4f), Rotation);
+		}
+	}
+
+	// Sterne: nachts sichtbar, drehen einmal pro Tag um den Himmelspol
+	const bool bStars = Inputs.NightFactor > 0.05f && StarDome->GetStaticMesh() != nullptr;
+	if (StarDome->IsVisible() != bStars)
+	{
+		StarDome->SetVisibility(bStars);
+	}
+	if (bStars)
+	{
+		const UVBWorldDeveloperSettings* Settings = GetDefault<UVBWorldDeveloperSettings>();
+		const UVBTimeOfDaySubsystem* Time = World->GetSubsystem<UVBTimeOfDaySubsystem>();
+		const float Hours = Time ? Time->GetTimeOfDay() : PreviewTimeOfDay;
+		const float Latitude = FMath::DegreesToRadians(Settings->Latitude);
+		const FVector Pole = FVector(FMath::Cos(Latitude), 0.f, FMath::Sin(Latitude)).RotateAngleAxis(Settings->NorthYawOffset, FVector::UpVector);
+		const FQuat Spin(FVector::UpVector, -FMath::DegreesToRadians(Hours * 15.f));
+		StarDome->SetWorldLocationAndRotation(Camera, FQuat::FindBetweenNormals(FVector::UpVector, Pole) * Spin);
 	}
 }
 

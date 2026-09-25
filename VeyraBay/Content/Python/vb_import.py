@@ -33,6 +33,7 @@ CATEGORY_TARGETS = {
     "Landmarks": vb.ROOT + "/Environment/Landmarks",
     "Terrain": vb.ROOT + "/Environment/Terrain",
     "Vehicles": vb.ROOT + "/Vehicles",
+    "Sky": vb.ROOT + "/Environment/Sky",
 }
 
 DEFAULT_META = {
