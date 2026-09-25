@@ -19,14 +19,21 @@ Legende: ✅ fertig · 🟡 umgesetzt, wartet auf Test am PC · ⏳ offen
 
 **Abnahme:** siehe README, Abschnitt 7.
 
-## Phase 2 – Eine extrem hochwertige Straße ⏳ (begonnen)
+## Phase 2 – Eine extrem hochwertige Straße 🟡
 
-- ✅ `SM_VB_StreetLight_A` – erste prozedurale Blender-Laterne (4.200 Dreiecke, Nanite, UCX-Kollision, Linse mit Dämmerungsschalter)
-- ⏳ Straßenquerschnitt als Modul-Kit: Fahrbahn, Bordstein, Rinne, Gehwegplatten, Kanaldeckel, Markierungen (Decals)
-- ⏳ Megascans-Oberflächen (Asphalt, Beton, Pflaster) + Schmutz-/Öl-/Riss-Decals
-- ⏳ Stadtmöbel: Ampel, Verkehrsschilder, Mülltonne, Bank, Poller, Hydrant, Parkuhr, Bushaltestelle
-- ⏳ Regentropfen und Regenkräuseln in Pfützen im Master-Material, Niagara-Regen, Wischer-Tropfen an der Kamera
-- ⏳ Fassaden-Kit für eine Straßenseite (Erdgeschoss mit Läden, Fenster mit Innenraum-Parallax)
+| Baustein | Status |
+|---|---|
+| Gebackene, nahtlos kachelnde PBR-Oberflächen: Asphalt (2K), Beton, Granit, Gusseisen, Holz | ✅ in Blender gebacken und geprüft |
+| Straßen-Kit: Fahrbahn 10 m (Wölbung, Rinnen, Markierungen), Zebrastreifen-Variante, Granit-Bordstein, Gehweg aus 45 Einzelplatten | ✅ |
+| Stadtmöbel: Kanaldeckel, Poller, Bank, Mülleimer, Hydrant, Halteverbotsschild, Ampel + Signallinse, LED-Laterne | ✅ |
+| `AVBStreetBuilder`: Straße prozedural per Instanced Static Meshes, Stadtmöbel-Regeln, Kanaldeckel folgen der Fahrbahnwölbung | 🟡 |
+| `AVBTrafficLight`: Ampelphasen Grün/Gelb/Rot/Rot-Gelb, Linsen per Custom Primitive Data, Event für den Verkehr | 🟡 |
+| Master-Material: Anti-Tiling-Makrovariation, animierte Regenkräuseln in Pfützen | 🟡 |
+| Import: gemeinsame Oberflächen-Materialien `MI_VB_Surface_<Name>` statt Texturduplikaten | 🟡 |
+| Testkarte: 120 m Straße mit Zebrastreifen, 2 Ampeln, 9 Laternen, Stadtmöbeln | 🟡 |
+| Offen: Schmutz-/Öl-/Laub-Decals, Niagara-Regen, Megascans als optionale Qualitätsstufe, Fassaden (→ Phase 3) | ⏳ |
+
+**Abnahme Phase 2:** siehe README, Abschnitt 7b.
 
 ## Phase 3 – Ein kompletter Stadtblock ⏳
 Modulare Fassaden-Kits (3 Baustile), Dächer mit Klimaanlagen/Antennen, Hinterhof, Gasse, Innenräume (1 Laden, 1 Treppenhaus), Fensterlicht nachts.

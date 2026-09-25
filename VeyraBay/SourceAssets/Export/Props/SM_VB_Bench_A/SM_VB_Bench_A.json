@@ -1,0 +1,28 @@
+{
+  "category": "Props",
+  "triangles": 1564,
+  "nanite": true,
+  "collision": "auto",
+  "slots": {
+    "PaintGreen": {
+      "base_color": [
+        0.04,
+        0.08,
+        0.06
+      ],
+      "roughness": 0.45,
+      "metallic": 0.0,
+      "porosity": 0.05
+    },
+    "BenchWood": {
+      "surface": "Wood",
+      "base_color": [
+        0.3,
+        0.18,
+        0.09
+      ],
+      "roughness": 0.65,
+      "metallic": 0.0
+    }
+  }
+}

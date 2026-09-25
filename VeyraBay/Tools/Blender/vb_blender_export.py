@@ -9,14 +9,15 @@ Konventionen (werden geprueft):
   * Jedes Asset ist ein Mesh-Objekt auf oberster Ebene mit Namen  SM_<Name>
   * Kollision: Kind-Objekte  UCX_SM_<Name>_00, _01 ... (konvexe Huellen)
   * Szene in Metern (Unit Scale 1.0) - 1 Blender-Einheit = 1 m = 100 Unreal-cm
-  * Pivot (Objekt-Ursprung) unten mittig bzw. am Scharnier; Skalierung/Rotation angewendet
+  * Pivot (Objekt-Ursprung) unten mittig, am Scharnier bzw. bei Kit-Teilen am Anfang (X=0);
+    Skalierung/Rotation angewendet
   * Vorderseite / Ausleger zeigen nach +X (bleibt in Unreal +X)
   * Mindestens eine UV-Map, alle Materialslots belegt
   * Optionale Custom Properties am Objekt (landen in <Name>.json):
       vb_category (Buildings|Roads|Props|Vegetation|Landmarks|Terrain|Vehicles)
       vb_nanite, vb_collision (auto|box|complex|none), vb_porosity, vb_wetness_response,
       vb_puddle_response, vb_uv_tiling
-  * Optionale Custom Properties am Material (pro Slot): vb_base_color (Liste), vb_roughness,
+  * Optionale Custom Properties am Material (pro Slot): vb_surface (gebackene Oberflaeche), vb_base_color (Liste), vb_roughness,
       vb_metallic, vb_emissive_color, vb_emissive_intensity, vb_use_night_switch
 """
 
@@ -48,6 +49,7 @@ OBJECT_KEYS = {
     "vb_uv_tiling": "uv_tiling",
 }
 MATERIAL_KEYS = {
+    "vb_surface": "surface",
     "vb_base_color": "base_color",
     "vb_roughness": "roughness",
     "vb_metallic": "metallic",
@@ -102,14 +104,10 @@ def validate_asset(asset, scene):
     if not asset.material_slots or any(slot.material is None for slot in asset.material_slots):
         errors.append("Leere Materialslots.")
 
-    # Pivot: Unterkante sollte auf Hoehe des Ursprungs liegen
+    # Pivot: Objekt darf nicht ueber dem Ursprung schweben (Unterbau unter der Oberflaeche ist erlaubt)
     min_z = min((v.co.z for v in mesh.vertices), default=0.0)
-    if abs(min_z) > 0.01:
-        warnings.append("Pivot liegt nicht an der Unterkante (min Z = %.3f m)." % min_z)
-
-    ngons = sum(1 for poly in mesh.polygons if len(poly.vertices) > 4)
-    if ngons:
-        warnings.append("%d N-Gons (beim Export trianguliert - Schattierung pruefen)." % ngons)
+    if min_z > 0.01:
+        warnings.append("Objekt schwebt %.3f m ueber dem Pivot - Pivot an die Unterkante setzen." % min_z)
 
     category = asset.get("vb_category", "Props")
     if category not in CATEGORIES:

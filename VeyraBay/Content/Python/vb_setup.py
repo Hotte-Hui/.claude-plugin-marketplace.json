@@ -25,6 +25,7 @@ TEX_DEFAULT_D = vb.ROOT + "/Textures/Default/T_VB_Default_D"
 TEX_DEFAULT_N = vb.ROOT + "/Textures/Default/T_VB_Default_N"
 TEX_DEFAULT_ORM = vb.ROOT + "/Textures/Default/T_VB_Default_ORM"
 TEX_PUDDLE_MASK = vb.ROOT + "/Textures/Default/T_VB_PuddleMask_M"
+TEX_RAIN_RIPPLES = vb.ROOT + "/Textures/Surfaces/RainRipples/T_VB_RainRipples_N"
 STREETLIGHT_MODEL = vb.ROOT + "/Environment/Props/SM_VB_StreetLight_A/SM_VB_StreetLight_A"
 
 # Skalare Parameter der globalen MPC (muessen mit VBWorldParams.cpp uebereinstimmen)
@@ -284,6 +285,29 @@ def build_master_material(mpc):
     g.link(puddle_a, "", puddle_mask, "A")
     g.link(puddle_response, "", puddle_mask, "B")
 
+    # --- Anti-Tiling: grossflaechige, weltbasierte Helligkeitsvariation ------------
+    # Verhindert, dass sich kachelnde Oberflaechen (Asphalt, Pflaster) sichtbar wiederholen.
+    macro_size = g.scalar("MacroWorldSize", 2300.0, -1250, -900, group="AntiTiling")
+    macro_amount = g.scalar("MacroVariation", 0.18, -1250, -800, group="AntiTiling")
+    macro_uv = g.node(unreal.MaterialExpressionDivide, -1100, -950)
+    g.link(world_xy, "", macro_uv, "A")
+    g.link(macro_size, "", macro_uv, "B")
+    macro_tex = g.node(unreal.MaterialExpressionTextureSample, -950, -950, texture=tex_puddle,
+                       sampler_type=sampler.SAMPLERTYPE_MASKS)
+    g.link(macro_uv, "", macro_tex, "UVs")
+    macro_centered = g.node(unreal.MaterialExpressionAdd, -800, -950, const_b=-0.5)
+    g.link(macro_tex, "G", macro_centered, "A")
+    macro_scaled = g.node(unreal.MaterialExpressionMultiply, -680, -950, const_b=2.0)
+    g.link(macro_centered, "", macro_scaled, "A")
+    macro_weighted = g.node(unreal.MaterialExpressionMultiply, -560, -950)
+    g.link(macro_scaled, "", macro_weighted, "A")
+    g.link(macro_amount, "", macro_weighted, "B")
+    macro_factor = g.node(unreal.MaterialExpressionAdd, -440, -950, const_b=1.0)
+    g.link(macro_weighted, "", macro_factor, "A")
+    base_macro = g.node(unreal.MaterialExpressionMultiply, -300, -600)
+    g.link(base_color, "", base_macro, "A")
+    g.link(macro_factor, "", base_macro, "B")
+
     # --- Kombination -----------------------------------------------------------
     # Nasse, poroese Oberflaechen werden dunkler (Wasser fuellt Poren)
     porosity = g.scalar("Porosity", 0.5, -1100, -250, group="Weather")
@@ -295,7 +319,7 @@ def build_master_material(mpc):
     g.link(wet_dark, "", wet_factor, "B")
     g.link(wet_mask, "", wet_factor, "Alpha")
     base_wet = g.node(unreal.MaterialExpressionMultiply, -450, -400)
-    g.link(base_color, "", base_wet, "A")
+    g.link(base_macro, "", base_wet, "A")
     g.link(wet_factor, "", base_wet, "B")
     base_puddle_dark = g.node(unreal.MaterialExpressionMultiply, -300, -300, const_b=0.6)
     g.link(base_wet, "", base_puddle_dark, "A")
@@ -312,12 +336,80 @@ def build_master_material(mpc):
     g.link(rough_wet, "", rough_final, "A")
     g.link(puddle_mask, "", rough_final, "Alpha")
 
-    # Normalen: Pfuetzen sind glatte Wasserflaechen
+    # Normalen: Pfuetzen sind glatte Wasserflaechen, bei Regen mit animierten Tropfenringen
     flat_normal = g.node(unreal.MaterialExpressionConstant3Vector, -450, 520,
                          constant=unreal.LinearColor(0.0, 0.0, 1.0, 0.0))
+    ripple_texture = unreal.load_asset(TEX_RAIN_RIPPLES) if unreal.EditorAssetLibrary.does_asset_exist(TEX_RAIN_RIPPLES) else None
+    if ripple_texture is not None:
+        # Flipbook 4 x 4: Frame = floor(frac(Zeit * Tempo) * 16), UV = (frac(Welt / Groesse) + (Spalte, Zeile)) / 4
+        time = g.node(unreal.MaterialExpressionTime, -1750, 2100)
+        speed = g.scalar("RippleSpeed", 1.3, -1750, 2200, group="Weather")
+        cycles = g.node(unreal.MaterialExpressionMultiply, -1600, 2120)
+        g.link(time, "", cycles, "A")
+        g.link(speed, "", cycles, "B")
+        phase = g.node(unreal.MaterialExpressionFrac, -1480, 2120)
+        g.link(cycles, "", phase, "")
+        frame_f = g.node(unreal.MaterialExpressionMultiply, -1380, 2120, const_b=16.0)
+        g.link(phase, "", frame_f, "A")
+        frame = g.node(unreal.MaterialExpressionFloor, -1260, 2120)
+        g.link(frame_f, "", frame, "")
+        four = g.node(unreal.MaterialExpressionConstant, -1260, 2220, r=4.0)
+        column = g.node(unreal.MaterialExpressionFmod, -1140, 2100)
+        g.link(frame, "", column, "A")
+        g.link(four, "", column, "B")
+        row_f = g.node(unreal.MaterialExpressionDivide, -1140, 2200, const_b=4.0)
+        g.link(frame, "", row_f, "A")
+        row = g.node(unreal.MaterialExpressionFloor, -1020, 2200)
+        g.link(row_f, "", row, "")
+        offset = g.node(unreal.MaterialExpressionAppendVector, -900, 2150)
+        g.link(column, "", offset, "A")
+        g.link(row, "", offset, "B")
+
+        ripple_size = g.scalar("RippleWorldSize", 60.0, -1400, 1950, group="Weather")
+        ripple_uv = g.node(unreal.MaterialExpressionDivide, -1250, 1950)
+        g.link(world_xy, "", ripple_uv, "A")
+        g.link(ripple_size, "", ripple_uv, "B")
+        cell = g.node(unreal.MaterialExpressionFrac, -1100, 1950)
+        g.link(ripple_uv, "", cell, "")
+        cell_offset = g.node(unreal.MaterialExpressionAdd, -800, 2000)
+        g.link(cell, "", cell_offset, "A")
+        g.link(offset, "", cell_offset, "B")
+        atlas_uv = g.node(unreal.MaterialExpressionDivide, -680, 2000, const_b=4.0)
+        g.link(cell_offset, "", atlas_uv, "A")
+
+        ripple_sample = g.node(unreal.MaterialExpressionTextureSample, -540, 2000, texture=ripple_texture,
+                               sampler_type=sampler.SAMPLERTYPE_NORMAL)
+        g.link(atlas_uv, "", ripple_sample, "UVs")
+        # Mip-Stufe aus der kontinuierlichen UV ableiten -> keine Naehte an den Frame-Grenzen
+        try:
+            ripple_sample.set_editor_property("mip_value_mode", unreal.TextureMipValueMode.TMVM_DERIVATIVE)
+            continuous = g.node(unreal.MaterialExpressionDivide, -900, 1900, const_b=4.0)
+            g.link(ripple_uv, "", continuous, "A")
+            ddx = g.node(unreal.MaterialExpressionDDX, -760, 1880)
+            ddy = g.node(unreal.MaterialExpressionDDY, -760, 1940)
+            g.link(continuous, "", ddx, "Value")
+            g.link(continuous, "", ddy, "Value")
+            g.link(ddx, "", ripple_sample, "DDX(UVs)")
+            g.link(ddy, "", ripple_sample, "DDY(UVs)")
+        except Exception:  # noqa: BLE001
+            vb.warn("Derivative-Mip fuer Regenkraeusel nicht verfuegbar - Standard-Mips werden genutzt.")
+
+        rain = g.mpc(mpc, "RainIntensity", -540, 2150)
+        ripple_amount = g.node(unreal.MaterialExpressionMultiply, -400, 2150, const_b=1.5)
+        g.link(rain, "", ripple_amount, "A")
+        ripple_amount_sat = g.node(unreal.MaterialExpressionSaturate, -300, 2150)
+        g.link(ripple_amount, "", ripple_amount_sat, "")
+        puddle_normal = g.node(unreal.MaterialExpressionLinearInterpolate, -300, 600)
+        g.link(flat_normal, "", puddle_normal, "A")
+        g.link(ripple_sample, "RGB", puddle_normal, "B")
+        g.link(ripple_amount_sat, "", puddle_normal, "Alpha")
+    else:
+        vb.warn("Regenkraeusel-Textur fehlt - Pfuetzen bleiben ohne Tropfenringe.")
+        puddle_normal = flat_normal
+
     normal_final = g.node(unreal.MaterialExpressionLinearInterpolate, -150, 450)
     g.link(normal_tex, "RGB", normal_final, "A")
-    g.link(flat_normal, "", normal_final, "B")
+    g.link(puddle_normal, "", normal_final, "B")
     g.link(puddle_mask, "", normal_final, "Alpha")
 
     # --- Emissive (Leuchten, Fenster, Neon) mit optionalem Daemmerungsschalter ----------
@@ -458,6 +550,87 @@ def clear_generated_actors(actor_subsystem, remove_template_lighting):
             actor_subsystem.destroy_actor(actor)
 
 
+KIT_ROOT = vb.ROOT + "/Environment"
+KIT = {
+    "road": KIT_ROOT + "/Roads/SM_VB_Road_10m/SM_VB_Road_10m",
+    "crosswalk": KIT_ROOT + "/Roads/SM_VB_Road_10m_Crosswalk/SM_VB_Road_10m_Crosswalk",
+    "curb": KIT_ROOT + "/Roads/SM_VB_Curb_2m/SM_VB_Curb_2m",
+    "sidewalk": KIT_ROOT + "/Roads/SM_VB_Sidewalk_2m/SM_VB_Sidewalk_2m",
+    "manhole": KIT_ROOT + "/Roads/SM_VB_Manhole_A/SM_VB_Manhole_A",
+    "bollard": KIT_ROOT + "/Props/SM_VB_Bollard_A/SM_VB_Bollard_A",
+    "bench": KIT_ROOT + "/Props/SM_VB_Bench_A/SM_VB_Bench_A",
+    "bin": KIT_ROOT + "/Props/SM_VB_TrashBin_A/SM_VB_TrashBin_A",
+    "hydrant": KIT_ROOT + "/Props/SM_VB_Hydrant_A/SM_VB_Hydrant_A",
+    "sign": KIT_ROOT + "/Props/SM_VB_Sign_NoStopping/SM_VB_Sign_NoStopping",
+    "signal": KIT_ROOT + "/Props/SM_VB_TrafficLight_A/SM_VB_TrafficLight_A",
+    "signal_lens": KIT_ROOT + "/Props/SM_VB_SignalLens/SM_VB_SignalLens",
+}
+BUILDING_LINE = 978.0  # Gehweg-Hinterkante (cm von der Strassenmitte)
+
+
+def load_kit(path):
+    return unreal.load_asset(path) if unreal.EditorAssetLibrary.does_asset_exist(path) else None
+
+
+def prop_rule(mesh, spacing, start, lateral, height=15.0, yaw=0.0, jitter=0.0, probability=1.0,
+              on_road=False, left=True, right=True):
+    rule = unreal.VBStreetPropRule()
+    rule.set_editor_property("mesh", mesh)
+    rule.set_editor_property("spacing", spacing)
+    rule.set_editor_property("start_offset", start)
+    rule.set_editor_property("lateral_offset", lateral)
+    rule.set_editor_property("height", height)
+    rule.set_editor_property("yaw_offset", yaw)
+    rule.set_editor_property("position_jitter", jitter)
+    rule.set_editor_property("probability", probability)
+    rule.set_editor_property("on_road_surface", on_road)
+    rule.set_editor_property("left_side", left)
+    rule.set_editor_property("right_side", right)
+    return rule
+
+
+def build_kit_street(actors, kit, length):
+    """Phase 2: 120 m Strasse aus dem Blender-Kit mit Zebrastreifen, Ampeln und Stadtmoebeln."""
+    origin_x = -length * 0.5
+    builder = actors.spawn_actor_from_class(unreal.VBStreetBuilder, unreal.Vector(origin_x, 0, 0))
+    builder.set_editor_property("length", length)
+    builder.set_editor_property("road_mesh", kit["road"])
+    builder.set_editor_property("crosswalk_mesh", kit["crosswalk"])
+    builder.set_editor_property("curb_mesh", kit["curb"])
+    builder.set_editor_property("sidewalk_mesh", kit["sidewalk"])
+    crosswalk_index = int(length * 0.5 // 1000)  # Fahrbahnstueck bei X = 0 .. 10 m
+    builder.set_editor_property("crosswalk_piece_index", crosswalk_index)
+
+    rules = []
+    if kit["manhole"]:
+        rules.append(prop_rule(kit["manhole"], 3500, 1500, 280, jitter=500, probability=0.8, on_road=True))
+    if kit["bollard"]:
+        rules.append(prop_rule(kit["bollard"], 1200, 600, 650, probability=0.5))
+    if kit["bench"]:
+        rules.append(prop_rule(kit["bench"], 2500, 1200, 930, probability=0.7))
+    if kit["bin"]:
+        rules.append(prop_rule(kit["bin"], 2500, 1900, 690, jitter=150, probability=0.9))
+    if kit["hydrant"]:
+        rules.append(prop_rule(kit["hydrant"], 5000, 3100, 700, probability=0.7))
+    if kit["sign"]:
+        # Schilder schauen dem Verkehr entgegen
+        rules.append(prop_rule(kit["sign"], 4000, 2300, 670, yaw=-90.0, probability=0.8))
+    builder.set_editor_property("props", rules)
+    vb.tag_actor(builder, "Street_Main", "Street", prototype=False)
+
+    # Ampeln am Zebrastreifen (Welt-X 0..10 m): je Fahrtrichtung rechts, vor der Haltelinie
+    if kit["signal"] and kit["signal_lens"]:
+        crossing_x = origin_x + crosswalk_index * 1000.0
+        for label, x, y, yaw in (("TrafficLight_East", crossing_x + 100, 700, 180.0),
+                                 ("TrafficLight_West", crossing_x + 900, -700, 0.0)):
+            signal = actors.spawn_actor_from_class(unreal.VBTrafficLight, unreal.Vector(x, y, 15),
+                                                   unreal.Rotator(roll=0.0, pitch=0.0, yaw=yaw))
+            signal.set_editor_property("model", kit["signal"])
+            signal.set_editor_property("lens_model", kit["signal_lens"])
+            vb.tag_actor(signal, label, "Street/TrafficLights", prototype=False)
+    return builder
+
+
 def build_dev_map(instances):
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     is_new = open_or_create_dev_map()
@@ -478,42 +651,48 @@ def build_dev_map(instances):
     sky = actors.spawn_actor_from_class(unreal.VBSkyEnvironment, unreal.Vector(0, 0, 0))
     vb.tag_actor(sky, "VB_SkyEnvironment", "Lighting", prototype=False)
 
-    # --- Boden, Strasse, Gehwege (Strasse entlang X, 12 m Fahrbahn + 2 x 4 m Gehweg) ---
-    length = 30000.0
+    # --- Boden ------------------------------------------------------------------
     box("Ground", "Dev/Greybox/Ground", (0, 0, -50), (40000, 40000, 100), instances["MI_VB_Dev_Ground"])
-    box("Road", "Dev/Greybox/Street", (0, 0, -4), (length, 1200, 10), instances["MI_VB_Dev_Asphalt"])
-    for side in (-1, 1):
-        box("Sidewalk_%s" % ("N" if side > 0 else "S"), "Dev/Greybox/Street",
-            (0, side * 800, 7.5), (length, 400, 15), instances["MI_VB_Dev_Sidewalk"])
 
-    # --- Gebaeude: unterschiedliche Breiten/Hoehen/Materialien, reproduzierbar per Seed ---
+    # --- Strasse: finales Kit (Phase 2) oder Graubox-Fallback --------------------
+    kit = {key: load_kit(path) for key, path in KIT.items()}
+    use_kit = kit["road"] is not None and kit["curb"] is not None and kit["sidewalk"] is not None
+    street_length = 12000.0 if use_kit else 30000.0
+    if use_kit:
+        build_kit_street(actors, kit, street_length)
+    else:
+        box("Road", "Dev/Greybox/Street", (0, 0, -4), (street_length, 1200, 10), instances["MI_VB_Dev_Asphalt"])
+        for side in (-1, 1):
+            box("Sidewalk_%s" % ("N" if side > 0 else "S"), "Dev/Greybox/Street",
+                (0, side * 800, 7.5), (street_length, 400, 15), instances["MI_VB_Dev_Sidewalk"])
+
+    # --- Gebaeude (Graubox bis Phase 3): Fassaden an der Gehweg-Hinterkante (9.78 m) ---
     rng = random.Random(7)
     facade_materials = ["MI_VB_Dev_Concrete", "MI_VB_Dev_PlasterWarm", "MI_VB_Dev_PlasterLight",
                         "MI_VB_Dev_Brick", "MI_VB_Dev_DarkFacade"]
     building_count = 0
     for side in (-1, 1):
-        x = -length * 0.45
-        while x < length * 0.45:
+        x = -street_length * 0.5 - 2000.0
+        while x < street_length * 0.5 + 2000.0:
             width = rng.uniform(1400, 2800)
             height = rng.choice([900, 1200, 1500, 1800, 2400, 3200, 4500, 6000])
             depth = rng.uniform(1600, 2200)
             material = instances[rng.choice(facade_materials)]
-            center_y = side * (1000 + depth * 0.5)
+            center_y = side * (BUILDING_LINE + depth * 0.5)
             box("Building_%s_%02d" % ("N" if side > 0 else "S", building_count), "Dev/Greybox/Buildings",
                 (x + width * 0.5, center_y, height * 0.5), (width, depth, height), material)
             building_count += 1
             x += width + rng.choice([0, 0, 0, 150, 300])  # gelegentlich Gassen
 
-    # --- Strassenlaternen alle 30 m, versetzt auf beiden Seiten -------------------
+    # --- Strassenlaternen alle 25 m, versetzt auf beiden Seiten -------------------
     # Finales Blender-Modell verwenden, falls importiert (sonst Prototyp-Grundformen)
     lamp_model = unreal.load_asset(STREETLIGHT_MODEL) if unreal.EditorAssetLibrary.does_asset_exist(STREETLIGHT_MODEL) else None
     lamp_count = 0
     for side in (-1, 1):
-        offset = 0.0 if side > 0 else 1500.0
-        x = -length * 0.25 + offset
-        while x < length * 0.25:
+        x = -street_length * 0.5 + (1250.0 if side > 0 else 2500.0)
+        while x < street_length * 0.5:
             yaw = -90.0 if side > 0 else 90.0  # Ausleger zeigt zur Fahrbahn
-            lamp = actors.spawn_actor_from_class(unreal.VBStreetLight, unreal.Vector(x, side * 660, 15),
+            lamp = actors.spawn_actor_from_class(unreal.VBStreetLight, unreal.Vector(x, side * 700, 15),
                                                  unreal.Rotator(roll=0.0, pitch=0.0, yaw=yaw))
             if lamp_model is not None:
                 lamp.set_editor_property("model", lamp_model)
@@ -522,17 +701,17 @@ def build_dev_map(instances):
                     component.set_material(0, instances["MI_VB_Dev_Metal"])
             vb.tag_actor(lamp, "StreetLight_%02d" % lamp_count, "Street/StreetLights", prototype=lamp_model is None)
             lamp_count += 1
-            x += 3000.0
+            x += 2500.0
 
     # --- Beleuchtungs-Kalibrierung (18 % Grau, Weiss, Schwarz, Chrom) -------------
     for index, name in enumerate(["MI_VB_Calib_Grey18", "MI_VB_Calib_White80", "MI_VB_Calib_Black04", "MI_VB_Calib_Chrome"]):
-        ball = actors.spawn_actor_from_object(sphere, unreal.Vector(800 + index * 120, -880, 65))
+        ball = actors.spawn_actor_from_object(sphere, unreal.Vector(-4200 + index * 120, -880, 65))
         ball.set_actor_scale3d(unreal.Vector(1.0, 1.0, 1.0))
         ball.get_component_by_class(unreal.StaticMeshComponent).set_material(0, instances[name])
         vb.tag_actor(ball, "Calibration_" + name.replace("MI_VB_Calib_", ""), "Dev/Calibration")
 
     # --- Interaktionstest: Tuer in freistehendem Rahmen ---------------------------
-    frame_x, frame_y = 1600.0, -880.0
+    frame_x, frame_y = -3600.0, -880.0
     box("DoorFrame_L", "Dev/Interaction", (frame_x, frame_y - 10, 125), (20, 20, 220), instances["MI_VB_Dev_Metal"])
     box("DoorFrame_R", "Dev/Interaction", (frame_x, frame_y + 105, 125), (20, 20, 220), instances["MI_VB_Dev_Metal"])
     box("DoorFrame_Top", "Dev/Interaction", (frame_x, frame_y + 47.5, 245), (20, 135, 20), instances["MI_VB_Dev_Metal"])
@@ -543,7 +722,7 @@ def build_dev_map(instances):
     vb.tag_actor(door, "TestDoor", "Dev/Interaction")
 
     # --- Spielerstart auf dem Gehweg, Blick die Strasse entlang ---------------------
-    start = actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(0, -780, 120))
+    start = actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(-1500, -800, 120))
     vb.tag_actor(start, "PlayerStart", "Gameplay", prototype=False)
 
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
@@ -568,6 +747,7 @@ def run():
         mpc = create_world_mpc()
 
         task.enter_progress_frame(1, "Master-Material & Instanzen")
+        vb_import.import_surfaces(textures_only=True)  # Regenkraeusel-Textur wird vom Master-Material gebraucht
         master = build_master_material(mpc)
         instances = create_material_instances(master)
 

@@ -31,6 +31,8 @@ Abhängigkeiten zeigen nur nach unten. Neue Systeme bekommen ein eigenes Modul, 
 | `AVBSkyEnvironment` | VBWorld | Sonne (Lux), Mond, Sky Atmosphere, Echtzeit-Skylight, Volumetric Clouds, Höhennebel + volumetrischer Nebel, Post-Processing mit physikalischer Belichtung, Editor-Vorschau |
 | `UVBNightLightComponent` | VBWorld | Dämmerungsschalter für alle Lichter eines Actors + Custom Primitive Data für Emissive-Materialien |
 | `AVBStreetLight` | VBWorld | Straßenlaterne (3000 cd, 3800 K, volumetrisch), nutzt das Blender-Modell, falls gesetzt |
+| `AVBStreetBuilder` | VBWorld | Gerade Straße aus dem Kit per Instanced Static Meshes, Regeln für Stadtmöbel, Fahrbahnhöhe `GetRoadSurfaceHeight()` |
+| `AVBTrafficLight` | VBWorld | Ampelzyklus, Linsen über Custom Primitive Data, `OnSignalChanged` / `AllowsPassage()` für den Verkehr |
 | `AVBPlayerCharacter` | VeyraBay | Third-Person-Figur mit realistischen Geschwindigkeiten, Sprint-FOV, Interaktion |
 | `UVBInputSet` | VeyraBay | Enhanced-Input-Aktionen zur Laufzeit (Tastatur/Maus + Gamepad, Entwickler-Tasten) |
 | `IVBInteractable` / `UVBInteractionComponent` | VeyraBay | Einheitliches Interaktionssystem für Türen, Schalter, Automaten, NPCs, Fahrzeuge |
@@ -69,7 +71,9 @@ Abhängigkeiten zeigen nur nach unten. Neue Systeme bekommen ein eigenes Modul, 
 | Geometrie | Nanite für alle statischen Meshes über ~500 Dreiecke | Echte geometrische Details, keine LOD-Pop-ins |
 | Belichtung | Physikalische Einheiten: Sonne ~110.000 lux, Mond ~0,6 lux, Laternen in Candela; Auto-Belichtung EV100 −3…16 | Richtige Verhältnisse zwischen Tag, Nacht und Kunstlicht |
 | AA / Upscaling | TSR (Quality nativ, Performance ~67 %); DLSS/DLAA automatisch, wenn das Plugin installiert ist | Beste Qualität je Hardware |
-| Wetter auf Oberflächen | Master-Material: Porositäts-Abdunklung, Rauheit → 0,12, Pfützen weltbasiert nur auf flachen Flächen, glatte Normalen | Straßen reagieren glaubwürdig und ohne Zusatzkosten pro Objekt |
+| Wetter auf Oberflächen | Master-Material: Porositäts-Abdunklung, Rauheit → 0,12, Pfützen weltbasiert nur auf flachen Flächen, glatte Normalen mit animierten Regenkräuseln (4×4-Flipbook) | Straßen reagieren glaubwürdig und ohne Zusatzkosten pro Objekt |
+| Anti-Tiling | Weltbasierte Makrovariation (23-m-Rauschen) auf jeder Oberfläche | Kachelnde Texturen wiederholen sich nicht sichtbar |
+| Straßen & Möbel | Eigene Blender-Kits mit echter Geometrie (Fasen, Einzelplatten, Relief), Instanced Static Meshes + Nanite | Nahbereich-Detail bei minimalen Draw Calls |
 
 ## 5. Welt & Streaming (ab Phase 3/7)
 

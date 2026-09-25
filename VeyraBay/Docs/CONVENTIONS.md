@@ -52,6 +52,14 @@ Dev/         Test-Inhalte, werden nicht ausgeliefert
 - Texturen neben die FBX legen: `T_<Name>_D.png`, `T_<Name>_N.png`, `T_<Name>_ORM.png` (bei mehreren Slots `T_<Name>_<Slot>_D.png`).
 - Normal Maps im Blender-/OpenGL-Format backen – der Import spiegelt den Grünkanal automatisch.
 
+## Gebackene Oberflächen & Kit-Teile
+
+- Oberflächen liegen unter `SourceAssets/Export/Surfaces/<Name>/` (`T_VB_<Name>_D/_N/_ORM.png` + `surface.json` mit Kachelgröße und Wetterparametern) und werden zu `MI_VB_Surface_<Name>` in `/Game/VeyraBay/Materials/Surfaces`.
+- UVs aller Kit-Teile sind **in Metern** (Würfelprojektion, 1 UV = 1 m). `UVTiling` der Oberfläche = 1 / Kachelgröße.
+- Materialslot mit Custom Property `vb_surface = "Asphalt"` → Unreal nutzt die gemeinsame Oberflächen-Instanz.
+- Kit-Teile: Pivot am Anfang (X = 0), kacheln entlang +X; Straßenquerschnitt siehe `Tools/Blender/assets/vb_asset_streetkit.py`.
+- Wegen `materials.clear()` in Blender immer `vb_blender_lib.assign_materials()` benutzen (erhält die Flächen-Materialindizes).
+
 ## Actor-Tags
 
 - `VB_Prototype` – Platzhalter, muss vor der Abnahme der Phase ersetzt werden.

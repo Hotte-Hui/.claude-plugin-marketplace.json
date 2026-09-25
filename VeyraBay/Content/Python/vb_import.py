@@ -11,6 +11,9 @@ Erwartete Struktur (erzeugt vom Blender-Tool Tools/Blender/vb_blender_export.py)
         T_Name_N.png         Normal      (OpenGL/Blender-Format, wird fuer Unreal gespiegelt)
         T_Name_ORM.png       AO / Roughness / Metallic
 
+Gebackene Oberflaechen: SourceAssets/Export/Surfaces/<Name>/T_VB_<Name>_D/_N/_ORM.png + surface.json
+-> MI_VB_Surface_<Name>. Materialslots mit "surface" in den Metadaten verwenden diese gemeinsame Instanz.
+
 Pro Asset: FBX-Import -> Texturen (korrekte Kompression/sRGB) -> Material-Instanz von
 M_VB_Surface -> Slot-Zuweisung -> Nanite -> Kollision -> LODs (falls kein Nanite) -> Speichern.
 """
@@ -116,9 +119,14 @@ def texture_base_name(asset_name):
     return asset_name[3:] if asset_name.startswith("SM_") else asset_name
 
 
-def import_textures(asset_dir, target_folder, base, slot=None):
-    """Sucht T_<Base>[_<Slot>]_D/N/ORM.png und importiert sie mit korrekten Einstellungen."""
-    stem = "T_%s_%s" % (base, slot) if slot else "T_%s" % base
+SURFACE_TEXTURES = vb.ROOT + "/Textures/Surfaces"
+SURFACE_MATERIALS = vb.ROOT + "/Materials/Surfaces"
+
+
+def import_textures(asset_dir, target_folder, base, slot=None, stem=None):
+    """Sucht <stem>_D/N/ORM.png (Standard: T_<Base>[_<Slot>]) und importiert sie mit korrekten Einstellungen."""
+    if stem is None:
+        stem = "T_%s_%s" % (base, slot) if slot else "T_%s" % base
     tcs = unreal.TextureCompressionSettings
     result = {}
     for suffix, srgb, compression in (("_D", True, None), ("_N", False, tcs.TC_NORMALMAP), ("_ORM", False, tcs.TC_MASKS)):
@@ -220,6 +228,35 @@ def delete_unused_imported_materials(target_folder, keep):
                 unreal.EditorAssetLibrary.delete_asset(package)
 
 
+def surface_material_path(name):
+    return "%s/MI_VB_Surface_%s" % (SURFACE_MATERIALS, name)
+
+
+def import_surfaces(textures_only=False):
+    """Importiert gebackene Oberflaechen (SourceAssets/Export/Surfaces/<Name>) und erzeugt MI_VB_Surface_<Name>."""
+    root = os.path.join(source_root(), "Surfaces")
+    results = []
+    if not os.path.isdir(root):
+        return results
+    for name in sorted(os.listdir(root)):
+        folder = os.path.join(root, name)
+        meta_path = os.path.join(folder, "surface.json")
+        if not os.path.isfile(meta_path):
+            continue
+        with open(meta_path, "r", encoding="utf-8") as handle:
+            meta = json.load(handle)
+        target = "%s/%s" % (SURFACE_TEXTURES, name)
+        unreal.EditorAssetLibrary.make_directory(target)
+        textures = import_textures(folder, target, name, stem="T_VB_%s" % name)
+        if textures_only or meta.get("texture_only"):
+            results.append("Oberflaeche %s: %d Textur(en)" % (name, len(textures)))
+            continue
+        folder_asset, mi_name = vb.split_path(surface_material_path(name))
+        create_material_instance(folder_asset, mi_name, textures, meta)
+        results.append("Oberflaeche %s: MI_VB_Surface_%s" % (name, name))
+    return results
+
+
 def import_one(category, asset_name, asset_dir, fbx):
     meta = load_meta(asset_dir, asset_name)
     target = CATEGORY_TARGETS[category] + "/" + asset_name
@@ -233,6 +270,14 @@ def import_one(category, asset_name, asset_dir, fbx):
     slots = mesh.get_editor_property("static_materials")
     for index, slot in enumerate(slots):
         slot_name = str(slot.get_editor_property("material_slot_name"))
+        slot_meta = meta.get("slots", {}).get(slot_name, {})
+        surface = slot_meta.get("surface")
+        if surface:
+            surface_mi = unreal.load_asset(surface_material_path(surface))
+            if surface_mi is not None:
+                mesh.set_material(index, surface_mi)
+                continue
+            vb.warn("%s: Oberflaeche '%s' fehlt - Slot bekommt eigenes Material." % (asset_name, surface))
         slot_textures = import_textures(asset_dir, target, base, slot_name) if len(slots) > 1 else {}
         textures = slot_textures or shared_textures
         params = dict(meta)
@@ -254,13 +299,19 @@ def import_one(category, asset_name, asset_dir, fbx):
 
 def run(show_dialog=True):
     exports = find_exports()
-    if not exports:
+    has_surfaces = os.path.isdir(os.path.join(source_root(), "Surfaces"))
+    if not exports and not has_surfaces:
         if show_dialog:
             vb.show_message("Veyra Bay - Import",
                             "Keine Exporte gefunden in:\n%s\n\nIn Blender das Veyra-Bay-Export-Tool nutzen." % source_root())
         return []
 
     results, failures = [], []
+    try:
+        results.extend(import_surfaces())
+    except Exception as exc:  # noqa: BLE001
+        failures.append("Oberflaechen: %s" % exc)
+        vb.error(failures[-1])
     with unreal.ScopedSlowTask(len(exports), "Veyra Bay: Assets werden importiert ...") as task:
         task.make_dialog(True)
         for category, asset_name, asset_dir, fbx in exports:

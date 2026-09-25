@@ -18,6 +18,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import vb_blender_export  # noqa: E402
+import vb_blender_lib as lib  # noqa: E402
 
 ASSET = "SM_VB_StreetLight_A"
 POLE_HEIGHT = 7.9
@@ -232,9 +233,7 @@ def build():
     parts.append(head)
 
     for part in parts:
-        part.data.materials.clear()
-        part.data.materials.append(paint)
-        part.data.materials.append(lens)
+        lib.assign_materials(part, [paint, lens])
         apply_modifiers(part)
 
     # Nur der Kopf nutzt Slot 1 (Linse); alle anderen Flaechen Slot 0

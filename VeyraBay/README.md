@@ -1,7 +1,7 @@
 # Veyra Bay – Open-World Vertical Slice (Unreal Engine 5.8)
 
 Eine fiktive Küstenstadt als technisch hochwertiger Open-World-Prototyp.
-**Aktueller Stand: Phase 1 (technisches Grundgerüst) + Start von Phase 2 (erstes Blender-Asset).**
+**Aktueller Stand: Phase 1 (technisches Grundgerüst) + Phase 2 (hochwertige Straße aus eigenem Blender-Kit).**
 
 | Dokument | Inhalt |
 |---|---|
@@ -92,6 +92,15 @@ Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann
 - [ ] E an der Testtür: Tür schwingt vom Spieler weg auf
 - [ ] F9: sichtbarer Wechsel QUALITY/PERFORMANCE, F2 zeigt die Frame-Zeiten
 
+### 7b. Phase-2-Abnahme (Straße)
+
+- [ ] „Veyra Bay → 1. Projekt einrichten“ erneut ausführen – die Karte nutzt dann automatisch das Straßen-Kit
+- [ ] 120 m Straße: Fahrbahn mit Wölbung, Markierungen, Zebrastreifen, Bordsteine, Plattengehweg, Kanaldeckel
+- [ ] Die zwei Ampeln am Zebrastreifen schalten Grün → Gelb → Rot → Rot-Gelb
+- [ ] Nahansicht (0–10 m): Gesteinskörnung im Asphalt, Fugen zwischen Gehwegplatten, Relief auf den Kanaldeckeln
+- [ ] F5 bis „HeavyRain“: in den Pfützen erscheinen animierte Tropfenringe
+- [ ] Die Fahrbahn wiederholt sich nicht sichtbar (großflächige Helligkeitsvariation)
+
 Bitte schick mir **Screenshots** (Tag, Nacht, Regen) und bei Problemen den **Output Log** (Fenster → Output Log).
 
 > **Ehrlicher Hinweis:** Die Gebäude der Testkarte sind noch bewusst einfache Blöcke (mit `VB_Prototype` markiert) – sie dienen nur zum Prüfen von Licht, Schatten, Nässe und Performance. Ab Phase 2/3 ersetzen echte Blender-Assets sie Stück für Stück. Die Straßenlaterne `SM_VB_StreetLight_A` ist bereits das erste finale Asset.
@@ -102,6 +111,15 @@ Bitte schick mir **Screenshots** (Tag, Nacht, Regen) und bei Problemen den **Out
 - Prozedurale Assets (Beispiel Straßenlaterne):
   `blender -b --factory-startup --python Tools/Blender/assets/vb_asset_streetlight.py -- --out SourceAssets/Export --blend SourceAssets/Blender/SM_VB_StreetLight_A.blend`
 - Danach im Editor: **Veyra Bay → 2. Assets importieren**.
+
+Alle Phase-2-Inhalte sind bereits erzeugt und im Repository. Neu erzeugen (Blender 4.2+):
+
+```
+blender -b --factory-startup --python Tools/Blender/surfaces/vb_surfaces.py -- --out SourceAssets/Export
+blender -b --factory-startup --python Tools/Blender/surfaces/vb_rain_ripples.py -- --out SourceAssets/Export
+blender -b --factory-startup --python Tools/Blender/assets/vb_asset_streetkit.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_StreetKit.blend
+blender -b --factory-startup --python Tools/Blender/assets/vb_asset_streetlight.py -- --out SourceAssets/Export --blend SourceAssets/Blender/SM_VB_StreetLight_A.blend
+```
 
 Details: [Docs/CONVENTIONS.md](Docs/CONVENTIONS.md).
 
