@@ -62,6 +62,9 @@ set VB_STEPS=setup,city
 - (noch nicht auf dem PC ausgeführt)
 
 ## Hinweis zur Herkunft
+Die Blender-Arbeitsdateien (`SourceAssets/Blender/*.blend`) sind im ZIP-Download nicht enthalten (werden nur zum
+Neu-Erzeugen der Assets gebraucht; sie liegen im GitHub-Repository bzw. entstehen mit den Skripten unter `Tools/`).
+
 Der Nutzer hat das Projekt als ZIP bekommen (ohne Git). Zum Zurückmelden: Repository
 `https://github.com/Hotte-Hui/.claude-plugin-marketplace.json` klonen, Branch `claude/awesome-dirac-a44iul`
 auschecken, Korrekturen in den Unterordner `VeyraBay/` übernehmen, committen und pushen. Falls dem Nutzer

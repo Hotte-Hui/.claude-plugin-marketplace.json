@@ -1,16 +1,11 @@
 VEYRA BAY - so geht es los
 ==========================
 
-1. Diesen Ordner nach C:\VeyraBay entpacken (die Datei VeyraBay.uproject muss direkt in C:\VeyraBay liegen).
-2. Claude Desktop App oeffnen -> links "Code" -> Ordner C:\VeyraBay auswaehlen.
-3. Diesen Text an Claude schicken:
-
-   Lies Docs/PC_UEBERGABE.md und arbeite die Anleitung komplett und selbststaendig ab:
-   Installiere, was fehlt, kompiliere das Projekt, behebe alle Fehler, fuehre Setup und
-   Stadtbau aus und teste das Spiel. Ich habe keine Programmierkenntnisse. Frag mich nur,
-   wenn es wirklich noetig ist, und erklaere mir am Ende in einfachem Deutsch, wie ich spiele.
-
-4. Wenn Claude fragt, ob es etwas ausfuehren/installieren darf: "Erlauben" klicken.
-
-Hinweis: Das Projekt ist noch nie auf einem echten PC kompiliert worden. Claude auf deinem PC
-behebt die Fehler, die dabei auftauchen. Das kann beim ersten Mal eine Weile dauern.
+1. Alle 9 Dateien "VeyraBay_Teil1_von_9.zip" ... "VeyraBay_Teil9_von_9.zip" herunterladen.
+2. Jede ZIP-Datei nach C:\ entpacken (Rechtsklick -> "Alle extrahieren..." -> Ziel: C:\ ).
+   Alle Teile landen im selben Ordner C:\VeyraBay (Fragen zum Zusammenfuehren mit "Ja" beantworten).
+   Danach muss es die Datei C:\VeyraBay\VeyraBay.uproject geben.
+3. Claude Desktop App oeffnen -> links "Code" -> Ordner C:\VeyraBay auswaehlen.
+4. Den Text aus der Datei C:\VeyraBay\PROMPT_FUER_CLAUDE.txt komplett kopieren und an Claude schicken.
+5. Wenn Claude fragt, ob es etwas ausfuehren/installieren darf: "Erlauben" klicken.
+   Am besten in der App die Berechtigungen auf "Alle Aktionen erlauben"/"Auto" stellen, dann fragt es seltener.
