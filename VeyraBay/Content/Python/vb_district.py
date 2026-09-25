@@ -14,6 +14,7 @@ import random
 import unreal
 
 import vb_common as vb
+import vb_vehicles
 
 ENV = vb.ROOT + "/Environment"
 TERRAIN_TILE = ENV + "/Terrain/SM_VB_Terrain_%d_%d/SM_VB_Terrain_%d_%d"
@@ -172,6 +173,10 @@ def build(actors, instances, sphere):
     start = actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(-2000, QUAY_Y + 700.0, 120),
                                           unreal.Rotator(roll=0.0, pitch=0.0, yaw=0.0))
     vb.tag_actor(start, "PlayerStart", "Gameplay", prototype=False)
+
+    # --- Phase 5: fahrbare Autos am suedlichen Ring (Parkstreifen Richtung Westen), Verkehr, Passanten ---
+    parking_y = -ring_y - 455.0
+    vb_vehicles.populate(actors, [(-2900.0 + k * 720.0, parking_y, 180.0) for k in range(6)])
 
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
     vb.log("Bezirk: %(buildings)d Gebaeude, %(streets)d Strassen, %(lamps)d Laternen, %(signals)d Ampeln, %(trees)d Baeume" % counts)

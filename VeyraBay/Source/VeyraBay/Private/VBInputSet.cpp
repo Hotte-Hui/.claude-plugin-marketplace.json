@@ -106,6 +106,60 @@ void UVBInputSet::Build()
 	GameplayContext->MapKey(Pause, EKeys::Escape);
 	GameplayContext->MapKey(Pause, EKeys::Gamepad_Special_Right);
 
+	// --- Fahrzeug: W/S bzw. Trigger, A/D bzw. linker Stick ----------------------------
+	VehicleContext = NewObject<UInputMappingContext>(this, TEXT("IMC_VB_Vehicle"));
+	Throttle      = MakeAction(this, TEXT("IA_Vehicle_Throttle"),  EInputActionValueType::Axis1D);
+	Brake         = MakeAction(this, TEXT("IA_Vehicle_Brake"),     EInputActionValueType::Axis1D);
+	Steer         = MakeAction(this, TEXT("IA_Vehicle_Steer"),     EInputActionValueType::Axis1D);
+	Handbrake     = MakeAction(this, TEXT("IA_Vehicle_Handbrake"), EInputActionValueType::Boolean);
+	ExitVehicle   = MakeAction(this, TEXT("IA_Vehicle_Exit"),      EInputActionValueType::Boolean);
+	VehicleLights = MakeAction(this, TEXT("IA_Vehicle_Lights"),    EInputActionValueType::Boolean);
+	VehicleReset  = MakeAction(this, TEXT("IA_Vehicle_Reset"),     EInputActionValueType::Boolean);
+	VehicleCamera = MakeAction(this, TEXT("IA_Vehicle_Camera"),    EInputActionValueType::Boolean);
+	{
+		UInputMappingContext* C = VehicleContext;
+		C->MapKey(Throttle, EKeys::W);
+		C->MapKey(Throttle, EKeys::Up);
+		C->MapKey(Throttle, EKeys::Gamepad_RightTriggerAxis);
+		C->MapKey(Brake, EKeys::S);
+		C->MapKey(Brake, EKeys::Down);
+		C->MapKey(Brake, EKeys::Gamepad_LeftTriggerAxis);
+
+		FEnhancedActionKeyMapping& Left = C->MapKey(Steer, EKeys::A);
+		AddNegate(C, Left, true, false);
+		FEnhancedActionKeyMapping& LeftArrow = C->MapKey(Steer, EKeys::Left);
+		AddNegate(C, LeftArrow, true, false);
+		C->MapKey(Steer, EKeys::D);
+		C->MapKey(Steer, EKeys::Right);
+		FEnhancedActionKeyMapping& StickX = C->MapKey(Steer, EKeys::Gamepad_LeftX);
+		UInputModifierDeadZone* DeadZone = NewObject<UInputModifierDeadZone>(C);
+		DeadZone->LowerThreshold = 0.1f;
+		DeadZone->UpperThreshold = 1.f;
+		DeadZone->Type = EDeadZoneType::Axial;
+		StickX.Modifiers.Add(DeadZone);
+
+		C->MapKey(Handbrake, EKeys::SpaceBar);
+		C->MapKey(Handbrake, EKeys::Gamepad_FaceButton_Right);
+		C->MapKey(ExitVehicle, EKeys::E);
+		C->MapKey(ExitVehicle, EKeys::F);
+		C->MapKey(ExitVehicle, EKeys::Gamepad_FaceButton_Top);
+		C->MapKey(VehicleLights, EKeys::L);
+		C->MapKey(VehicleLights, EKeys::Gamepad_DPad_Up);
+		C->MapKey(VehicleReset, EKeys::R);
+		C->MapKey(VehicleReset, EKeys::Gamepad_DPad_Right);
+		C->MapKey(VehicleCamera, EKeys::C);
+		C->MapKey(VehicleCamera, EKeys::Gamepad_RightThumbstick);
+
+		// Kamera und Pause wie zu Fuss
+		FEnhancedActionKeyMapping& Mouse = C->MapKey(Look, EKeys::Mouse2D);
+		AddNegate(C, Mouse, false, true);
+		FEnhancedActionKeyMapping& Stick = C->MapKey(LookGamepad, EKeys::Gamepad_Right2D);
+		AddDeadZone(C, Stick, 0.12f);
+		C->MapKey(Pause, EKeys::P);
+		C->MapKey(Pause, EKeys::Escape);
+		C->MapKey(Pause, EKeys::Gamepad_Special_Right);
+	}
+
 	// --- Entwickler-Tasten -----------------------------------------------------------
 	DebugPerf         = MakeAction(this, TEXT("IA_Debug_Perf"),         EInputActionValueType::Boolean, true);
 	DebugInfo         = MakeAction(this, TEXT("IA_Debug_Info"),         EInputActionValueType::Boolean, true);

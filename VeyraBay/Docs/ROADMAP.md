@@ -68,8 +68,19 @@ Legende: ✅ fertig · 🟡 umgesetzt, wartet auf Test am PC · ⏳ offen
 
 **Abnahme Phase 4:** README, Abschnitt 7d.
 
-## Phase 5 – Fahrzeuge + NPCs ⏳
-Chaos Vehicles (8 fiktive Modelle), Mass-Verkehr mit Ampeln, MetaHuman-NPCs mit Tagesabläufen, Motion Matching, Ein-/Aussteigen.
+## Phase 5 – Fahrzeuge + NPCs 🟡
+
+| Baustein | Status |
+|---|---|
+| Fahrzeug-Generator (Blender): Sportwagen, Limousine, Taxi, SUV, Pickup, Transporter, Bus, Motorrad – fiktive Formen, Radhäuser, Innenraum, Lichtzonen | ✅ erzeugt |
+| Je Auto: `SM_` (Verkehr/geparkt), `SK_` mit Radknochen (Chaos), eigenes Rad-Mesh; `vehicles.json` mit Maßen/Masse | ✅ |
+| Import: Skeletal Meshes + Physics Asset, `M_VB_Surface` für Skeletal Meshes freigegeben | 🟡 |
+| `AVBVehicle` (Chaos): Einsteigen per E, Automatik, Handbremse, Verfolgerkamera (2 Stufen, Rückwärtsblick), Lichtautomatik, Blinker beim Abbiegen, Aufrichten, Nässe senkt den Grip, Tacho | 🟡 |
+| `AVBTrafficManager`: Spurgraph aus den Straßen, Abbiegekurven, Ampeln (Gelb-Entscheidung), Linksabbieger warten, Kreuzungen ohne Ampel, IDM-Folgemodell, Dichte nach Uhrzeit/Wetter, Blinker/Bremslicht/Scheinwerfer, parkende Autos | 🟡 |
+| `AVBCrowdManager` + `AVBPedestrian`: Gehweg-Graph mit Ecken und Zebrastreifen, Warten bei Rot, Autos halten für Fußgänger, Dichte nach Uhrzeit/Wetter | 🟡 |
+| Offen: MetaHuman-Passanten mit Tagesabläufen, Motion Matching, Motorsound, Fahrzeugschäden, Einsteige-Animation | ⏳ |
+
+**Abnahme Phase 5:** README, Abschnitt 7e.
 
 ## Phase 6 – Wetter + Tag/Nacht (Ausbau) ⏳
 Eigenes Wolkenmaterial (Bedeckung aus MPC), Niagara-Regen/Nebel/Sturm, Blitze mit Licht und Donner, Scheibenwischer, Sterne, Mondphasen, MegaLights für viele Stadtlichter.

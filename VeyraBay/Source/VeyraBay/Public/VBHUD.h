@@ -31,6 +31,7 @@ private:
 	void DrawToast(float UIScale);
 	void DrawPauseOverlay(float UIScale);
 	void DrawSetupHint(float UIScale);
+	void DrawVehicleHUD(float UIScale);
 
 	int32 PerfLevel = 0;
 	bool bShowDebugInfo = false;

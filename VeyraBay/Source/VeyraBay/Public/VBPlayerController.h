@@ -20,6 +20,10 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
+	virtual void OnPossess(APawn* InPawn) override;
+
+	/** Zu Fuss: GameplayContext, im Fahrzeug: VehicleContext. */
+	void UpdateMappingContexts(APawn* ForPawn);
 
 private:
 	void Input_Pause(const FInputActionValue& Value);

@@ -22,6 +22,8 @@ public:
 
 	UPROPERTY() TObjectPtr<UInputMappingContext> GameplayContext;
 	UPROPERTY() TObjectPtr<UInputMappingContext> DebugContext;
+	/** Ersetzt GameplayContext, solange der Spieler ein Fahrzeug steuert. */
+	UPROPERTY() TObjectPtr<UInputMappingContext> VehicleContext;
 
 	// --- Gameplay --------------------------------------------------------
 	UPROPERTY() TObjectPtr<UInputAction> Move;
@@ -32,6 +34,16 @@ public:
 	UPROPERTY() TObjectPtr<UInputAction> WalkToggle;
 	UPROPERTY() TObjectPtr<UInputAction> Interact;
 	UPROPERTY() TObjectPtr<UInputAction> Pause;
+
+	// --- Fahrzeug -------------------------------------------------------------
+	UPROPERTY() TObjectPtr<UInputAction> Throttle;
+	UPROPERTY() TObjectPtr<UInputAction> Brake;
+	UPROPERTY() TObjectPtr<UInputAction> Steer;
+	UPROPERTY() TObjectPtr<UInputAction> Handbrake;
+	UPROPERTY() TObjectPtr<UInputAction> ExitVehicle;
+	UPROPERTY() TObjectPtr<UInputAction> VehicleLights;
+	UPROPERTY() TObjectPtr<UInputAction> VehicleReset;
+	UPROPERTY() TObjectPtr<UInputAction> VehicleCamera;
 
 	// --- Entwickler-Tasten (nicht in Shipping-Builds) ------------------------
 	UPROPERTY() TObjectPtr<UInputAction> DebugPerf;

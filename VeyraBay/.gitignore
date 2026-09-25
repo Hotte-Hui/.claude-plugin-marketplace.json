@@ -24,3 +24,4 @@ __pycache__/
 
 # Gelaende-Quelldatei (deterministisch neu erzeugbar, ~18 MB)
 SourceAssets/Blender/VB_Coast.blend
+SourceAssets/Blender/VB_Vehicles.blend

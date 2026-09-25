@@ -14,6 +14,8 @@ public class VeyraBay : ModuleRules
 			"InputCore",
 			"EnhancedInput",
 			"DeveloperSettings",
+			"PhysicsCore",
+			"ChaosVehicles",
 			"VBCore",
 			"VBWorld"
 		});

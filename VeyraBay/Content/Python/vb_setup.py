@@ -20,6 +20,7 @@ import unreal
 import vb_common as vb
 import vb_import
 import vb_district
+import vb_vehicles
 import vb_materials_nature
 
 MEL = unreal.MaterialEditingLibrary
@@ -147,7 +148,7 @@ def build_master_material(mpc):
     if not created:
         MEL.delete_all_material_expressions(material)
 
-    for usage_name in ("MATL_NANITE", "MATL_INSTANCED_STATIC_MESHES"):
+    for usage_name in ("MATL_NANITE", "MATL_INSTANCED_STATIC_MESHES", "MATL_SKELETAL_MESH"):
         usage = getattr(unreal.MaterialUsage, usage_name, None)
         if usage is not None:
             try:
@@ -200,9 +201,23 @@ def build_master_material(mpc):
     g.link(tint, "", tint_final, "A")
     g.link(tint2, "", tint_final, "B")
     g.link(tint_alpha, "", tint_final, "Alpha")
+    # Lackfarbe je Fahrzeug aus Custom Primitive Data 6..8 (nur wenn UsePaintData = 1, z. B. Karosserie)
+    paint = []
+    for index, channel_name in ((6, "PaintR"), (7, "PaintG"), (8, "PaintB")):
+        node = g.scalar(channel_name, 0.5, -1900, -1100 + index * 40, group="Paint")
+        try:
+            node.set_editor_property("use_custom_primitive_data", True)
+            node.set_editor_property("primitive_data_index", index)
+        except Exception:  # noqa: BLE001
+            pass
+        paint.append(node)
+    paint_rg = g.op(unreal.MaterialExpressionAppendVector, paint[0], paint[1], -1750, -1000)
+    paint_rgb = g.op(unreal.MaterialExpressionAppendVector, paint_rg, paint[2], -1650, -1000)
+    use_paint = g.scalar("UsePaintData", 0.0, -1750, -900, group="Paint")
+    tint_paint = g.lerp(tint_final, paint_rgb, use_paint, -1500, -800)
     base_color = g.node(unreal.MaterialExpressionMultiply, -1450, -450)
     g.link(base_tex, "RGB", base_color, "A")
-    g.link(tint_final, "", base_color, "B")
+    g.link(tint_paint, "", base_color, "B")
 
     roughness_scale = g.scalar("Roughness", 0.7, -1750, 200)
     roughness = g.node(unreal.MaterialExpressionMultiply, -1450, 100)
@@ -412,8 +427,27 @@ def build_master_material(mpc):
     except Exception:  # noqa: BLE001
         vb.warn("Custom Primitive Data fuer LightOn nicht verfuegbar - Daemmerungsschalter wirkt nur auf Lichter.")
     use_switch = g.scalar("UseNightSwitch", 0.0, -700, 1920, group="Emissive")
+    # Lichtkanal: 0 = LightOn (CPD 0, Daemmerungsschalter/Ampel), 2..5 = Fahrzeuglichter (CPD 2..5:
+    # Bremslicht, Scheinwerfer, Blinker links, Blinker rechts). Auswahl per MI-Parameter "LightChannel".
+    channel = g.scalar("LightChannel", 0.0, -950, 2050, group="Emissive")
+    selected = None
+    for index, source in ((0, light_on),) + tuple((k, None) for k in (2, 3, 4, 5)):
+        if source is None:
+            source = g.scalar("VehicleLight%d" % index, 0.0, -950, 2150 + index * 60, group="Emissive")
+            try:
+                source.set_editor_property("use_custom_primitive_data", True)
+                source.set_editor_property("primitive_data_index", index)
+            except Exception:  # noqa: BLE001
+                pass
+        # Gewicht = 1 - saturate(|Kanal - index|)
+        diff = g.op(unreal.MaterialExpressionSubtract, channel, float(index), -820, 2100 + index * 60)
+        weight = g.unary(unreal.MaterialExpressionOneMinus, g.unary(unreal.MaterialExpressionSaturate,
+                         g.unary(unreal.MaterialExpressionAbs, diff, -760, 2100 + index * 60), -700, 2100 + index * 60),
+                         -640, 2100 + index * 60)
+        term = g.op(unreal.MaterialExpressionMultiply, source, weight, -580, 2100 + index * 60)
+        selected = term if selected is None else g.op(unreal.MaterialExpressionAdd, selected, term, -520, 2100 + index * 60)
     switch = g.node(unreal.MaterialExpressionLinearInterpolate, -450, 1850, const_a=1.0)
-    g.link(light_on, "", switch, "B")
+    g.link(selected, "", switch, "B")
     g.link(use_switch, "", switch, "Alpha")
     emissive_raw = g.node(unreal.MaterialExpressionMultiply, -450, 1650)
     g.link(emissive_color, "", emissive_raw, "A")
@@ -979,6 +1013,7 @@ def build_dev_map(instances):
         start = actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(-1500, -STREET_Y + 800, 120),
                                               unreal.Rotator(roll=0.0, pitch=0.0, yaw=0.0))
         vb.tag_actor(start, "PlayerStart", "Gameplay", prototype=False)
+        vb_vehicles.populate(actors, [(-2400.0 + k * 720.0, -STREET_Y + 455.0, 0.0) for k in range(6)])
         unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
         vb.log("Stadtblock: %(buildings)d Gebaeude, %(streets)d Strassen, %(lamps)d Laternen, %(signals)d Ampeln" % counts)
         return counts["buildings"], counts["lamps"]

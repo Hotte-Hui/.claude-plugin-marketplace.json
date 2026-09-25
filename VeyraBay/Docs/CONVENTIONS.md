@@ -73,6 +73,17 @@ fährt auf der +Y-Seite. Fassadenmodule: Außenseite = −Y, Wand nach +Y, Modul
 |---|---|---|
 | 0 | `LightOn` | `UVBNightLightComponent`, `AVBTrafficLight` |
 | 1 | `TintBlend` | `AVBBuildingBuilder` (Putzfarbton je Gebäude) |
+| 2 | Rück-/Bremslicht (0,3 = Standlicht, 1 = Bremsen) | `AVBVehicle`, `AVBTrafficVehicle` (Materialparameter `LightChannel` = 2) |
+| 3 | Scheinwerfer | dito (`LightChannel` = 3) |
+| 4 / 5 | Blinker links / rechts (blinkt 1,5 Hz) | dito (`LightChannel` = 4 / 5) |
+| 6–8 | Lackfarbe R, G, B (linear) | dito, nur bei `UsePaintData` = 1 (Material `CarPaint`) |
+
+Fahrzeuge: Pivot = Mitte des Radstands am Boden, X vorne. Räder sind eigene Meshes (`SM_VB_Wheel_<Typ>`,
+Achse Y, Felge zeigt nach +Y); linke Räder werden um 180° gedreht. Radreihenfolge überall: VL, VR, HL, HR.
+Skelett der fahrbaren Autos: `root` + `wheel_fl`, `wheel_fr`, `wheel_rl`, `wheel_rr` (Karosserie zu 100 % an `root`).
+
+Verkehr (Rechtsverkehr): Fahrspur-Mitte 2,40 m, Parkstreifen 4,55 m, Gehweg-Laufmitte 8,00 m von der
+Straßenmitte; Haltelinie 9,35 m, Kreuzungs-Mesh ±9,78 m ab Kreuzungsmitte.
 
 ## Actor-Tags
 

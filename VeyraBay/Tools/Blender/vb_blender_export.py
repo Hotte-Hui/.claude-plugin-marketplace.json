@@ -58,6 +58,8 @@ MATERIAL_KEYS = {
     "vb_emissive_color": "emissive_color",
     "vb_emissive_intensity": "emissive_intensity",
     "vb_use_night_switch": "use_night_switch",
+    "vb_light_channel": "light_channel",
+    "vb_use_paint_data": "use_paint_data",
     "vb_porosity": "porosity",
     "vb_wetness_response": "wetness_response",
     "vb_puddle_response": "puddle_response",

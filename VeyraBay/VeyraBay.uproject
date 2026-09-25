@@ -35,6 +35,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "ChaosVehiclesPlugin",
+			"Enabled": true
+		},
+		{
 			"Name": "PythonScriptPlugin",
 			"Enabled": true
 		},

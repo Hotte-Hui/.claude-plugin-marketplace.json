@@ -65,8 +65,20 @@ Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann
 | Shift / L3 | Sprinten |
 | Strg / Steuerkreuz ↓ | Gehen an/aus |
 | Leertaste / A | Springen |
-| E / X | Interagieren (z. B. Testtür) |
+| E / X | Interagieren (Tür, **Auto einsteigen**) |
 | P / Esc | Pause (im Editor beendet Esc die Vorschau – dort P nutzen) |
+
+**Im Auto:**
+
+| Taste | Aktion |
+|---|---|
+| W / S (Rechter / linker Trigger) | Gas / Bremse, im Stand S = rückwärts |
+| A / D (linker Stick) | Lenken |
+| Leertaste / B | Handbremse |
+| E oder F / Y | Aussteigen (unter 12 km/h) |
+| L / Steuerkreuz ↑ | Licht: Auto → An → Aus |
+| C / R3 | Kamera nah / fern |
+| R / Steuerkreuz → | Auto aufrichten |
 
 **Entwickler-Tasten** (nicht im fertigen Spiel):
 
@@ -118,6 +130,17 @@ Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann
 - [ ] Ringstraße mit T-Kreuzungen und Ecken schließt den Bezirk; Platanen am Stadtrand und im Innenhof
 - [ ] Palmen und Bäume bewegen sich im Wind
 
+### 7e. Phase-5-Abnahme (Fahrzeuge, Verkehr, Passanten)
+
+- [ ] Am südlichen Ring parken 6 fahrbare Autos: hingehen, **E** → einsteigen, losfahren; Tacho unten rechts
+- [ ] Räder drehen und lenken, Federung arbeitet; Bremslichter beim Bremsen, Blinker beim langsamen Abbiegen
+- [ ] F7 bis zum Abend: Scheinwerfer gehen automatisch an und leuchten die Straße aus
+- [ ] F5 bis „HeavyRain“: das Auto rutscht spürbar früher (F3 zeigt den Fahrbahn-Grip)
+- [ ] KI-Verkehr hält an roten Ampeln, fährt bei Grün, biegt ab (mit Blinker), Linksabbieger lassen Gegenverkehr durch
+- [ ] Autos halten vor dir, wenn du auf der Fahrbahn stehst; parkende Autos am Straßenrand
+- [ ] Passanten auf den Gehwegen, warten an roten Ampeln und gehen über die Zebrastreifen; nachts und bei Regen weniger
+- [ ] Debug: im Details-Panel von `TrafficManager` bzw. `CrowdManager` „Draw Debug“ an → Spuren/Ampelzustände/Gehwege sichtbar
+
 Bitte schick mir **Screenshots** (Tag, Nacht, Regen) und bei Problemen den **Output Log** (Fenster → Output Log).
 
 > **Ehrlicher Hinweis:** Alle Inhalte sind selbst erzeugt (Blender, prozedural) und in Blender gerendert geprüft. In Unreal wurde bisher nichts kompiliert oder getestet – das kann nur auf deinem PC passieren. Rechne beim ersten Kompilieren mit einzelnen Fehlern, die ich dann behebe.
@@ -140,11 +163,13 @@ blender -b --factory-startup --python Tools/Blender/assets/vb_asset_facades.py -
 blender -b --factory-startup --python Tools/Blender/surfaces/vb_water_textures.py -- --out SourceAssets/Export
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_coast.py -- --out SourceAssets/Export
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_vegetation.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_Vegetation.blend
+blender -b --factory-startup --python Tools/Blender/assets/vb_asset_vehicles.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_Vehicles.blend
 # Vorschau des Stadtblocks (gleiche Logik wie in Unreal):
 blender -b --factory-startup --python Tools/Blender/assets/vb_preview_block.py -- --out block.png --view street --textures SourceAssets/Export
 blender -b --factory-startup --python Tools/Blender/assets/vb_preview_district.py -- --out promenade.png --textures SourceAssets/Export
+blender -b --factory-startup --python Tools/Blender/assets/vb_preview_district.py -- --out ring.png --view street --textures SourceAssets/Export
 ```
-Hinweis: `vb_preview_district.py` braucht `SourceAssets/Blender/VB_Coast.blend` – dazu `vb_asset_coast.py` einmal mit `--blend SourceAssets/Blender/VB_Coast.blend` ausführen (die Datei ist wegen ihrer Größe nicht im Repository).
+Hinweis: `vb_preview_district.py` braucht `SourceAssets/Blender/VB_Coast.blend` und `VB_Vehicles.blend` – dazu `vb_asset_coast.py` bzw. `vb_asset_vehicles.py` einmal mit `--blend …` ausführen (die Dateien sind wegen ihrer Größe nicht im Repository).
 
 Details: [Docs/CONVENTIONS.md](Docs/CONVENTIONS.md).
 

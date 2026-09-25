@@ -51,8 +51,9 @@ def reset_scene():
 
 
 def deselect_all():
-    for obj in bpy.context.view_layer.objects:
-        obj.select_set(False)
+    for obj in list(bpy.context.view_layer.objects):
+        if obj is not None:
+            obj.select_set(False)
 
 
 def activate(obj):
@@ -613,7 +614,7 @@ def render_preview(path, target, camera_location, resolution=(900, 600), lens=50
     if preview_textures_root:
         apply_surface_previews(preview_textures_root)
     if ground:
-        bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 0, -0.001))
+        bpy.ops.mesh.primitive_plane_add(size=400, location=(target[0], target[1], -0.001))
         ground_obj = bpy.context.active_object
         material = bpy.data.materials.new("PreviewGround")
         material.use_nodes = True

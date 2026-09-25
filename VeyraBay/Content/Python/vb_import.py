@@ -81,6 +81,8 @@ def load_meta(asset_dir, asset_name):
 
 
 def import_mesh(fbx_path, target_folder, asset_name, meta):
+    """Static Mesh (Standard) oder Skeletal Mesh mit Physics Asset (meta["skeletal"], z. B. fahrbare Autos)."""
+    skeletal = bool(meta.get("skeletal", False))
     task = unreal.AssetImportTask()
     task.set_editor_property("filename", fbx_path)
     task.set_editor_property("destination_path", target_folder)
@@ -92,31 +94,66 @@ def import_mesh(fbx_path, target_folder, asset_name, meta):
     # Optionen fuer den klassischen FBX-Importer (Interchange ignoriert sie; Nachbearbeitung unten greift immer)
     try:
         options = unreal.FbxImportUI()
-        options.set_editor_property("import_as_skeletal", False)
+        options.set_editor_property("import_as_skeletal", skeletal)
+        options.set_editor_property("import_mesh", True)
         options.set_editor_property("import_materials", False)
         options.set_editor_property("import_textures", False)
         options.set_editor_property("import_animations", False)
-        mesh_data = options.get_editor_property("static_mesh_import_data")
-        mesh_data.set_editor_property("combine_meshes", True)
-        mesh_data.set_editor_property("generate_lightmap_u_vs", False)
-        mesh_data.set_editor_property("auto_generate_collision", False)
-        try:
-            mesh_data.set_editor_property("build_nanite", bool(meta.get("nanite", True)))
-        except Exception:  # noqa: BLE001
-            pass
+        if skeletal:
+            options.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_SKELETAL_MESH)
+            options.set_editor_property("create_physics_asset", True)
+            skel_data = options.get_editor_property("skeletal_mesh_import_data")
+            skel_data.set_editor_property("import_morph_targets", False)
+            skel_data.set_editor_property("use_t0_as_ref_pose", False)
+        else:
+            mesh_data = options.get_editor_property("static_mesh_import_data")
+            mesh_data.set_editor_property("combine_meshes", True)
+            mesh_data.set_editor_property("generate_lightmap_u_vs", False)
+            mesh_data.set_editor_property("auto_generate_collision", False)
+            try:
+                mesh_data.set_editor_property("build_nanite", bool(meta.get("nanite", True)))
+            except Exception:  # noqa: BLE001
+                pass
         task.set_editor_property("options", options)
     except Exception:  # noqa: BLE001
         pass
 
     vb.asset_tools().import_asset_tasks([task])
     mesh = unreal.load_asset(target_folder + "/" + asset_name)
-    if mesh is None or not isinstance(mesh, unreal.StaticMesh):
+    expected = unreal.SkeletalMesh if skeletal else unreal.StaticMesh
+    if mesh is None or not isinstance(mesh, expected):
         raise RuntimeError("FBX-Import fehlgeschlagen: " + fbx_path)
     return mesh
 
 
+def mesh_slots(mesh):
+    """Namen der Materialslots fuer Static und Skeletal Meshes."""
+    if isinstance(mesh, unreal.SkeletalMesh):
+        return [str(m.get_editor_property("material_slot_name")) for m in mesh.get_editor_property("materials")]
+    return [str(m.get_editor_property("material_slot_name")) for m in mesh.get_editor_property("static_materials")]
+
+
+def assign_slot(mesh, index, material):
+    if isinstance(mesh, unreal.SkeletalMesh):
+        materials = list(mesh.get_editor_property("materials"))
+        materials[index].set_editor_property("material_interface", material)
+        mesh.set_editor_property("materials", materials)
+    else:
+        mesh.set_material(index, material)
+
+
+def setup_physics_asset(mesh, target, asset_name):
+    """Chaos Vehicle braucht einen Koerper auf dem Root-Knochen; der FBX-Import erzeugt <Name>_PhysicsAsset."""
+    physics = unreal.load_asset("%s/%s_PhysicsAsset" % (target, asset_name))
+    if physics is not None:
+        mesh.set_editor_property("physics_asset", physics)
+        return "Physics Asset"
+    vb.warn("%s: kein Physics Asset erzeugt - im Skeletal-Mesh-Editor 'Create Physics Asset' ausfuehren." % asset_name)
+    return "kein Physics Asset"
+
+
 def texture_base_name(asset_name):
-    return asset_name[3:] if asset_name.startswith("SM_") else asset_name
+    return asset_name[3:] if asset_name.startswith(("SM_", "SK_")) else asset_name
 
 
 SURFACE_TEXTURES = vb.ROOT + "/Textures/Surfaces"
@@ -188,6 +225,10 @@ def create_material_instance(target_folder, name, textures, params):
     mel.set_material_instance_scalar_parameter_value(mi, "Porosity", float(params.get("porosity", 0.5)))
     mel.set_material_instance_scalar_parameter_value(mi, "WetnessResponse", float(params.get("wetness_response", 1.0)))
     mel.set_material_instance_scalar_parameter_value(mi, "PuddleResponse", float(params.get("puddle_response", 0.0)))
+    if "light_channel" in params:
+        mel.set_material_instance_scalar_parameter_value(mi, "LightChannel", float(params["light_channel"]))
+    if params.get("use_paint_data"):
+        mel.set_material_instance_scalar_parameter_value(mi, "UsePaintData", 1.0)
     if "emissive_intensity" in params:
         color = params.get("emissive_color", [1.0, 0.85, 0.6])
         mel.set_material_instance_vector_parameter_value(mi, "EmissiveColor", unreal.LinearColor(color[0], color[1], color[2], 1))
@@ -303,23 +344,22 @@ def import_one(category, asset_name, asset_dir, fbx):
     base = texture_base_name(asset_name)
     shared_textures = import_textures(asset_dir, target, base)
 
-    keep = {target + "/" + asset_name}
-    slots = mesh.get_editor_property("static_materials")
-    for index, slot in enumerate(slots):
-        slot_name = str(slot.get_editor_property("material_slot_name"))
+    keep = {target + "/" + asset_name, "%s/%s_PhysicsAsset" % (target, asset_name), "%s/%s_Skeleton" % (target, asset_name)}
+    slots = mesh_slots(mesh)
+    for index, slot_name in enumerate(slots):
         slot_meta = meta.get("slots", {}).get(slot_name, {})
         shared = slot_meta.get("shared_material")
         if shared:
             shared_mi = unreal.load_asset(vb.shared_material_path(shared))
             if shared_mi is not None:
-                mesh.set_material(index, shared_mi)
+                assign_slot(mesh, index, shared_mi)
                 continue
             vb.warn("%s: gemeinsames Material '%s' fehlt - zuerst 'Projekt einrichten' ausfuehren." % (asset_name, shared))
         surface = slot_meta.get("surface")
         if surface:
             surface_mi = unreal.load_asset(surface_material_path(surface))
             if surface_mi is not None:
-                mesh.set_material(index, surface_mi)
+                assign_slot(mesh, index, surface_mi)
                 continue
             vb.warn("%s: Oberflaeche '%s' fehlt - Slot bekommt eigenes Material." % (asset_name, surface))
         slot_textures = import_textures(asset_dir, target, base, slot_name) if len(slots) > 1 else {}
@@ -333,20 +373,24 @@ def import_one(category, asset_name, asset_dir, fbx):
                 params.update(slot_meta)
                 create_material_instance(folder_asset, kit_name, {}, params)
                 _kit_materials_this_run.add(kit_path)
-            mesh.set_material(index, unreal.load_asset(kit_path))
+            assign_slot(mesh, index, unreal.load_asset(kit_path))
             continue
         params = dict(meta)
         params.update(meta.get("slots", {}).get(slot_name, {}))
         mi_name = "MI_%s_%s" % (base, slot_name) if len(slots) > 1 else "MI_%s" % base
         mi = create_material_instance(target, mi_name, textures, params)
-        mesh.set_material(index, mi)
+        assign_slot(mesh, index, mi)
         keep.add(target + "/" + mi_name)
         for texture in textures.values():
             if texture is not None:
                 keep.add(texture.get_path_name().split(".")[0])
 
-    collision = setup_collision(mesh, meta.get("collision", "auto"))
-    geometry = setup_nanite_and_lods(mesh, meta)
+    if isinstance(mesh, unreal.SkeletalMesh):
+        collision = setup_physics_asset(mesh, target, asset_name)
+        geometry = "Skeletal"
+    else:
+        collision = setup_collision(mesh, meta.get("collision", "auto"))
+        geometry = setup_nanite_and_lods(mesh, meta)
     vb.save_asset(mesh)
     delete_unused_imported_materials(target, keep)
     return "%s/%s: %d Slot(s), %s, Kollision %s" % (category, asset_name, len(slots), geometry, collision)

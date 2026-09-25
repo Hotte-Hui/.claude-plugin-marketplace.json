@@ -3,6 +3,7 @@
 #include "VBGraphicsSubsystem.h"
 #include "VBInteractionComponent.h"
 #include "VBPlayerCharacter.h"
+#include "VBVehicle.h"
 #include "VBTimeOfDaySubsystem.h"
 #include "VBWeatherSubsystem.h"
 #include "Engine/Canvas.h"
@@ -34,6 +35,7 @@ void AVBHUD::DrawHUD()
 
 	DrawSetupHint(UIScale);
 	DrawInteractionPrompt(UIScale);
+	DrawVehicleHUD(UIScale);
 	DrawToast(UIScale);
 
 	if (bShowDebugInfo)
@@ -114,6 +116,40 @@ void AVBHUD::DrawInteractionPrompt(float UIScale)
 
 	const FString Line = FString::Printf(TEXT("[E]  %s"), *Prompt.ToString());
 	DrawPanel(Line, Canvas->ClipX * 0.5f, Canvas->ClipY * 0.72f, GEngine->GetMediumFont(), UIScale, true);
+}
+
+void AVBHUD::DrawVehicleHUD(float UIScale)
+{
+	const AVBVehicle* Vehicle = PlayerOwner ? Cast<AVBVehicle>(PlayerOwner->GetPawn()) : nullptr;
+	if (!Vehicle)
+	{
+		return;
+	}
+
+	const float Speed = FMath::Abs(Vehicle->GetSpeedKmh());
+	const int32 Gear = Vehicle->GetCurrentGear();
+	const FString GearText = Gear < 0 ? TEXT("R") : (Gear == 0 ? TEXT("N") : FString::FromInt(Gear));
+	const TCHAR* LightText = Vehicle->GetHeadlightMode() == EVBHeadlightMode::Auto ? TEXT("Licht Auto")
+		: (Vehicle->GetHeadlightMode() == EVBHeadlightMode::On ? TEXT("Licht An") : TEXT("Licht Aus"));
+
+	const FString SpeedText = FString::Printf(TEXT("%3.0f"), Speed);
+	UFont* Large = GEngine->GetLargeFont();
+	UFont* Small = GEngine->GetSmallFont();
+	const float Scale = UIScale * 2.2f;
+	float Width = 0.f;
+	float Height = 0.f;
+	GetTextSize(SpeedText, Width, Height, Large, Scale);
+
+	const float Right = Canvas->ClipX - 40.f * UIScale;
+	const float Bottom = Canvas->ClipY - 40.f * UIScale;
+	const float BoxW = FMath::Max(Width + 40.f * UIScale, 470.f * UIScale);
+	const float BoxH = Height + 60.f * UIScale;
+	DrawRect(VBHUDStyle::PanelColor, Right - BoxW, Bottom - BoxH, BoxW, BoxH);
+	DrawText(SpeedText, FLinearColor::White, Right - 20.f * UIScale - Width, Bottom - BoxH + 8.f * UIScale, Large, Scale);
+	DrawText(FString::Printf(TEXT("km/h   Gang %s   %.0f U/min"), *GearText, Vehicle->GetEngineRPM()), VBHUDStyle::Muted,
+		Right - BoxW + 16.f * UIScale, Bottom - 44.f * UIScale, Small, UIScale);
+	DrawText(FString::Printf(TEXT("%s   [L] Licht  [C] Kamera  [R] Aufrichten  [E] Aussteigen"), LightText), VBHUDStyle::Muted,
+		Right - BoxW + 16.f * UIScale, Bottom - 24.f * UIScale, Small, UIScale * 0.85f);
 }
 
 void AVBHUD::DrawToast(float UIScale)

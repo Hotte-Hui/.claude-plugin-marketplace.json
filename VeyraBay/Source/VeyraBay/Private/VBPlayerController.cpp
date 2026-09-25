@@ -4,6 +4,7 @@
 #include "VBHUD.h"
 #include "VBInputSet.h"
 #include "VBTimeOfDaySubsystem.h"
+#include "VBVehicle.h"
 #include "VBWeatherSubsystem.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -44,7 +45,7 @@ void AVBPlayerController::SetupInputComponent()
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 		{
-			Subsystem->AddMappingContext(Set->GameplayContext, 0);
+			Subsystem->AddMappingContext(Cast<AVBVehicle>(GetPawn()) ? Set->VehicleContext : Set->GameplayContext, 0);
 #if !UE_BUILD_SHIPPING
 			Subsystem->AddMappingContext(Set->DebugContext, 1);
 #endif
@@ -68,6 +69,29 @@ void AVBPlayerController::SetupInputComponent()
 	Input->BindAction(Set->DebugTimePause, ETriggerEvent::Started, this, &AVBPlayerController::Debug_TimePause);
 	Input->BindAction(Set->DebugGraphicsMode, ETriggerEvent::Started, this, &AVBPlayerController::Debug_GraphicsMode);
 #endif
+}
+
+void AVBPlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	UpdateMappingContexts(InPawn);
+}
+
+void AVBPlayerController::UpdateMappingContexts(APawn* ForPawn)
+{
+	ULocalPlayer* LocalPlayer = GetLocalPlayer();
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = LocalPlayer ? LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>() : nullptr;
+	if (!Subsystem)
+	{
+		return;
+	}
+	UVBInputSet* Set = GetInputSet();
+	const bool bInVehicle = Cast<AVBVehicle>(ForPawn) != nullptr;
+	Subsystem->RemoveMappingContext(bInVehicle ? Set->GameplayContext : Set->VehicleContext);
+	if (!Subsystem->HasMappingContext(bInVehicle ? Set->VehicleContext : Set->GameplayContext))
+	{
+		Subsystem->AddMappingContext(bInVehicle ? Set->VehicleContext : Set->GameplayContext, 0);
+	}
 }
 
 AVBHUD* AVBPlayerController::GetVBHUD() const
