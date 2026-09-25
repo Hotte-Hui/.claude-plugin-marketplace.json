@@ -25,6 +25,10 @@ getestet** worden – rechne mit Kompilierfehlern (Engine-API-Details von 5.8) u
   kopieren: `<UE>\Templates\TP_ThirdPerson\Content\Characters` → `VeyraBay\Content\Characters`
   (und falls vorhanden `...\Content\LevelPrototyping`). Das Setup trägt Mesh + AnimBlueprint dann automatisch ein.
 
+## 1b. Inhalte erzeugen (nur beim kleinen Download ohne `SourceAssets/Export`)
+Blender 4.5 LTS und Python 3 installieren, dann `python Tools/generate_all.py` (erzeugt alle Modelle, Texturen,
+das Stadtgelaende und die Klaenge; ca. 20-60 min). Erst danach Setup/Import ausfuehren.
+
 ## 2. Kompilieren
 ```
 "<UE>\Engine\Build\BatchFiles\Build.bat" VeyraBayEditor Win64 Development -Project="<Pfad>\VeyraBay\VeyraBay.uproject" -WaitMutex -NoHotReload

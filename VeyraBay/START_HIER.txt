@@ -1,11 +1,13 @@
 VEYRA BAY - so geht es los
 ==========================
 
-1. Alle 9 Dateien "VeyraBay_Teil1_von_9.zip" ... "VeyraBay_Teil9_von_9.zip" herunterladen.
-2. Jede ZIP-Datei nach C:\ entpacken (Rechtsklick -> "Alle extrahieren..." -> Ziel: C:\ ).
-   Alle Teile landen im selben Ordner C:\VeyraBay (Fragen zum Zusammenfuehren mit "Ja" beantworten).
+1. Die heruntergeladene ZIP-Datei nach C:\ entpacken (Rechtsklick -> "Alle extrahieren..." -> Ziel: C:\ ).
    Danach muss es die Datei C:\VeyraBay\VeyraBay.uproject geben.
-3. Claude Desktop App oeffnen -> links "Code" -> Ordner C:\VeyraBay auswaehlen.
-4. Den Text aus der Datei C:\VeyraBay\PROMPT_FUER_CLAUDE.txt komplett kopieren und an Claude schicken.
-5. Wenn Claude fragt, ob es etwas ausfuehren/installieren darf: "Erlauben" klicken.
-   Am besten in der App die Berechtigungen auf "Alle Aktionen erlauben"/"Auto" stellen, dann fragt es seltener.
+   (Hast du stattdessen die 9 Teile geladen: alle 9 nach C:\ entpacken, Fragen mit "Ja" beantworten.)
+2. Claude Desktop App oeffnen -> links "Code" -> Ordner C:\VeyraBay auswaehlen.
+3. Den Text aus der Datei C:\VeyraBay\PROMPT_FUER_CLAUDE.txt komplett kopieren und an Claude schicken.
+4. Wenn Claude fragt, ob es etwas ausfuehren/installieren darf: "Erlauben" klicken
+   (oder in der App die Berechtigungen auf "Auto" stellen, dann fragt es seltener).
+
+Beim kleinen Download fehlen Modelle, Texturen und Klaenge - Claude erzeugt sie auf deinem PC
+selbst mit Blender (kostenlos, installiert Claude). Das dauert beim ersten Mal etwas.

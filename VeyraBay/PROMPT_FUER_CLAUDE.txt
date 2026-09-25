@@ -10,20 +10,25 @@ lesen und bewerten. Arbeite in kleinen, pruefbaren Schritten und protokolliere d
 
 SOFORT, in dieser Reihenfolge:
 1. Lies Docs/PC_UEBERGABE.md, README.md und Docs/ROADMAP.md.
-2. Pruefe/Installiere: Unreal Engine 5.8 (Pfad finden), Visual Studio 2022 mit "Spieleentwicklung mit C++"
+2. Falls der Ordner SourceAssets\Export fehlt oder leer ist (kleiner Download ohne Modelle/Texturen/Klaenge):
+   Installiere Blender 4.5 LTS (winget install BlenderFoundation.Blender.LTS.4.5) und Python 3
+   (winget install Python.Python.3.12) und erzeuge alle Inhalte mit
+   "python Tools\generate_all.py" (dauert ca. 20-60 Minuten; meldet am Ende "Alles erzeugt.").
+   Danach weiter mit Schritt 3.
+3. Pruefe/Installiere: Unreal Engine 5.8 (Pfad finden), Visual Studio 2022 mit "Spieleentwicklung mit C++"
    inkl. MSVC und Windows SDK, Git. Kopiere die Mannequin-Vorlage aus <UE>\Templates\TP_ThirdPerson\Content\Characters
    nach C:\VeyraBay\Content\Characters, falls sie fehlt.
-3. Kompiliere VeyraBayEditor (Win64 Development) mit Build.bat. Behebe JEDEN Kompilierfehler (der Code wurde nie
+4. Kompiliere VeyraBayEditor (Win64 Development) mit Build.bat. Behebe JEDEN Kompilierfehler (der Code wurde nie
    auf echter Hardware kompiliert; typische Ursachen: geaenderte Engine-Signaturen in 5.8). Aendere das Verhalten
    nicht, nur so viel wie noetig. Wiederhole, bis alles fehlerfrei baut.
-4. Fuehre das unbeaufsichtigte Setup und den Stadtbau aus (Content/Python/vb_headless.py, siehe PC_UEBERGABE.md),
+5. Fuehre das unbeaufsichtigte Setup und den Stadtbau aus (Content/Python/vb_headless.py, siehe PC_UEBERGABE.md),
    behebe Python-Fehler, bis Saved/VeyraBay_Headless.txt "OK" meldet. Baue danach die HLODs fuer L_VB_City.
-5. Teste: Starte das Spiel in L_VB_City (z. B. UnrealEditor.exe mit -game und -ExecCmds) und fuehre
+6. Teste: Starte das Spiel in L_VB_City (z. B. UnrealEditor.exe mit -game und -ExecCmds) und fuehre
    "vb.Benchmark 60 all" aus. Mache Screenshots (HighResShot) an mehreren Orten, zu Tag/Nacht/Regen
    (vb.Time, vb.Weather) und SCHAU DIR DIE BILDER AN: Suche nach fehlenden Texturen, schwarzen/zu hellen Flaechen,
    schwebenden oder versunkenen Objekten, falsch gedrehten Teilen, Loechern im Boden. Pruefe das Output Log auf
    Errors/Warnings. Behebe gefundene Probleme und teste erneut.
-6. Ziel-Leistung: QUALITY >= 60 fps (1440p, TSR/DLSS), PERFORMANCE >= 90 fps. Wenn nicht erreicht: mit
+7. Ziel-Leistung: QUALITY >= 60 fps (1440p, TSR/DLSS), PERFORMANCE >= 90 fps. Wenn nicht erreicht: mit
    "stat unit", "stat gpu", "stat VeyraBay" und Unreal Insights die Ursache finden und optimieren.
 
 DANACH - das Spiel besser machen (in dieser Prioritaet):
