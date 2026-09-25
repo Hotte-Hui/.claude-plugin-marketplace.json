@@ -113,3 +113,4 @@ void AVBTrafficVehicle::UpdateVisuals(float DeltaSeconds, float SpeedCm, float S
 	SetCPD(4, (Indicator < 0 || Indicator == 2) ? Blink : 0.f);
 	SetCPD(5, Indicator > 0 ? Blink : 0.f);
 }
+

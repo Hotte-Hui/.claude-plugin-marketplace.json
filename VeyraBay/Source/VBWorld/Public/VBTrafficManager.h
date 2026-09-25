@@ -63,6 +63,8 @@ struct FVBTrafficAgent
 	float Accel = 0.f;
 	float WaitTime = 0.f;
 	float Yaw = 0.f;
+	float BodyPitch = 0.f;
+	float BodyRoll = 0.f;
 	TArray<int32, TInlineAllocator<4>> Route;   // geplante naechste Fahrwege
 	bool bCommitted = false;             // darf in die Kreuzung einfahren
 };

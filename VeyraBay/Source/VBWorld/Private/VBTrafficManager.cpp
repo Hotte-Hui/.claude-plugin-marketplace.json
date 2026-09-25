@@ -1159,11 +1159,17 @@ void AVBTrafficManager::PlaceAgent(FVBTrafficAgent& Agent, float DeltaSeconds, b
 	const float NewYaw = Lane.Tangent(T).Rotation().Yaw;
 	const float YawDelta = FMath::FindDeltaAngleDegrees(Agent.Yaw, NewYaw);
 	Agent.Yaw = NewYaw;
-	Agent.Actor->SetActorLocationAndRotation(Location, FRotator(0.f, Agent.Yaw, 0.f));
 
 	// Lenkwinkel aus der Kruemmung: tan(delta) = Radstand * Kruemmung
 	const float Distance = FMath::Max(Agent.V * DeltaSeconds, 1.f);
 	const float Curvature = FMath::DegreesToRadians(YawDelta) / Distance;
+
+	// Karosseriebewegung: Nicken beim Bremsen/Anfahren, Neigen in Kurven (Querbeschleunigung v^2 * Kruemmung)
+	const float TargetPitch = FMath::Clamp(-Agent.Accel / 900.f * 1.6f, -1.8f, 1.2f);
+	const float TargetRoll = FMath::Clamp(Agent.V * Agent.V * Curvature / 900.f * 1.4f, -2.5f, 2.5f);
+	Agent.BodyPitch = FMath::FInterpTo(Agent.BodyPitch, TargetPitch, DeltaSeconds, 4.f);
+	Agent.BodyRoll = FMath::FInterpTo(Agent.BodyRoll, TargetRoll, DeltaSeconds, 4.f);
+	Agent.Actor->SetActorLocationAndRotation(Location, FRotator(Agent.BodyPitch, Agent.Yaw, Agent.BodyRoll));
 	const float Steer = Agent.V > 10.f ? FMath::Clamp(FMath::RadiansToDegrees(FMath::Atan(Type.Wheelbase * Curvature)), -35.f, 35.f) : 0.f;
 
 	// Blinker: auf der Abbiegekurve oder bis 35 m davor
