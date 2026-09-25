@@ -1,0 +1,23 @@
+# Unreal Engine - lokal erzeugte Dateien
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+Build/
+.vs/
+.vscode/
+.idea/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# Blender-Backups
+*.blend1
+*.blend2
+
+# Python
+__pycache__/
+*.pyc
