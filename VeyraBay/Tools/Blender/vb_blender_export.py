@@ -50,6 +50,7 @@ OBJECT_KEYS = {
 }
 MATERIAL_KEYS = {
     "vb_surface": "surface",
+    "vb_master": "master",
     "vb_shared_material": "shared_material",
     "vb_base_color": "base_color",
     "vb_roughness": "roughness",
@@ -107,7 +108,7 @@ def validate_asset(asset, scene):
 
     # Pivot: Objekt darf nicht ueber dem Ursprung schweben (Unterbau unter der Oberflaeche ist erlaubt)
     min_z = min((v.co.z for v in mesh.vertices), default=0.0)
-    if min_z > 0.01:
+    if min_z > 0.01 and asset.get("vb_category") != "Terrain":
         warnings.append("Objekt schwebt %.3f m ueber dem Pivot - Pivot an die Unterkante setzen." % min_z)
 
     category = asset.get("vb_category", "Props")

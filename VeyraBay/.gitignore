@@ -21,3 +21,6 @@ Build/
 # Python
 __pycache__/
 *.pyc
+
+# Gelaende-Quelldatei (deterministisch neu erzeugbar, ~18 MB)
+SourceAssets/Blender/VB_Coast.blend

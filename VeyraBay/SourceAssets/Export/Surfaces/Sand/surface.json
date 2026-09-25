@@ -1,0 +1,8 @@
+{
+  "surface": "Sand",
+  "tile_meters": 3.0,
+  "uv_tiling": 0.3333333333333333,
+  "porosity": 0.9,
+  "wetness_response": 1.0,
+  "puddle_response": 0.0
+}

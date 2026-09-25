@@ -440,6 +440,28 @@ class Shader:
         node.inputs["Randomness"].default_value = randomness
         return node
 
+    def voronoi_warped(self, scale, feature="F1", warp=0.25, warp_scale=3.0):
+        """Voronoi mit verzerrten Koordinaten (organische statt polygonale Zellen), weiterhin kachelbar."""
+        vector, w, _ = self.torus()
+        warp_noise = self.noise(warp_scale, 3, 0.5)
+        offset = self.nodes.new("ShaderNodeVectorMath")
+        offset.operation = "SCALE"
+        centered = self.nodes.new("ShaderNodeVectorMath")
+        centered.operation = "SUBTRACT"
+        self.link(warp_noise.outputs["Color"], centered.inputs[0])
+        centered.inputs[1].default_value = (0.5, 0.5, 0.5)
+        self.link(centered.outputs[0], offset.inputs[0])
+        offset.inputs["Scale"].default_value = warp / (2.0 * math.pi)
+        warped = self.nodes.new("ShaderNodeVectorMath")
+        warped.operation = "ADD"
+        self.link(vector, warped.inputs[0])
+        self.link(offset.outputs[0], warped.inputs[1])
+        node = self.node("ShaderNodeTexVoronoi", voronoi_dimensions="4D", feature=feature)
+        self.link(warped.outputs[0], node.inputs["Vector"])
+        self.link(w, node.inputs["W"])
+        node.inputs["Scale"].default_value = scale
+        return node
+
     def uv(self, axis):
         _, _, separate = self.torus()
         return separate.outputs[axis]
@@ -490,25 +512,26 @@ def _pixels(image):
     return array.reshape(size, size, 4)
 
 
-def write_png(path, pixels, sixteen_bit=False):
+def write_png(path, pixels, sixteen_bit=False, alpha=False):
     """Schreibt ein RGB-PNG aus einem (H, W, >=3) float-Array 0..1 (Blender-Zeilenreihenfolge: unten zuerst)."""
     import struct
     import zlib
 
-    data = np.clip(np.flipud(pixels[:, :, :3]), 0.0, 1.0)
+    channels = 4 if alpha and pixels.shape[2] >= 4 else 3
+    data = np.clip(np.flipud(pixels[:, :, :channels]), 0.0, 1.0)
     height, width = data.shape[:2]
     if sixteen_bit:
-        raw_rows = (np.round(data * 65535.0).astype(">u2")).reshape(height, width * 3)
+        raw_rows = (np.round(data * 65535.0).astype(">u2")).reshape(height, width * channels)
         depth = 16
     else:
-        raw_rows = np.round(data * 255.0).astype(np.uint8).reshape(height, width * 3)
+        raw_rows = np.round(data * 255.0).astype(np.uint8).reshape(height, width * channels)
         depth = 8
     raw = b"".join(b"\x00" + raw_rows[row].tobytes() for row in range(height))
 
     def chunk(tag, payload):
         return struct.pack(">I", len(payload)) + tag + payload + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
 
-    header = struct.pack(">IIBBBBB", width, height, depth, 2, 0, 0, 0)
+    header = struct.pack(">IIBBBBB", width, height, depth, 6 if channels == 4 else 2, 0, 0, 0)
     with open(path, "wb") as handle:
         handle.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
 

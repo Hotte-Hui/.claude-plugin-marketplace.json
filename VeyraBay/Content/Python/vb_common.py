@@ -202,3 +202,89 @@ def tag_actor(actor, label=None, folder=None, prototype=True):
     except Exception:  # aeltere/neuere Engine-Versionen: Eigenschaft evtl. nicht editierbar
         pass
     return actor
+
+
+# ---------------------------------------------------------------------------
+# Material-Graph-Helfer (gemeinsam fuer alle Material-Skripte)
+# ---------------------------------------------------------------------------
+class MaterialGraph:
+    """Kleiner Helfer, um Material-Graphen lesbar per Python aufzubauen."""
+
+    def __init__(self, material):
+        self.material = material
+        self.failed_links = 0
+
+    def node(self, expression_class, x, y, **props):
+        expression = unreal.MaterialEditingLibrary.create_material_expression(self.material, expression_class, x, y)
+        for key, value in props.items():
+            expression.set_editor_property(key, value)
+        return expression
+
+    def scalar(self, name, default, x, y, group="Surface"):
+        return self.node(unreal.MaterialExpressionScalarParameter, x, y,
+                         parameter_name=name, default_value=default, group=group)
+
+    def link(self, source, source_output, target, target_input):
+        if not unreal.MaterialEditingLibrary.connect_material_expressions(source, source_output, target, target_input):
+            self.failed_links += 1
+            warn("Verbindung fehlgeschlagen: %s.%s -> %s.%s" % (
+                source.get_class().get_name(), source_output, target.get_class().get_name(), target_input))
+
+    def output(self, source, source_output, material_property):
+        if not unreal.MaterialEditingLibrary.connect_material_property(source, source_output, material_property):
+            self.failed_links += 1
+            warn("Ausgang fehlgeschlagen: %s -> %s" % (source.get_class().get_name(), material_property))
+
+    def link_any(self, source, source_output, target, target_inputs):
+        """Verbindet mit dem ersten passenden Eingangsnamen (Namen unterscheiden sich zwischen Engine-Versionen)."""
+        for name in target_inputs:
+            if unreal.MaterialEditingLibrary.connect_material_expressions(source, source_output, target, name):
+                return True
+        self.failed_links += 1
+        warn("Keine der Verbindungen %s an %s moeglich." % (target_inputs, target.get_class().get_name()))
+        return False
+
+    def texture(self, texture, uv_node, x, y, sampler=None, uv_output=""):
+        node = self.node(unreal.MaterialExpressionTextureSample, x, y, texture=texture)
+        if sampler is not None:
+            node.set_editor_property("sampler_type", sampler)
+        self.link(uv_node, uv_output, node, "UVs")
+        return node
+
+    def op(self, expression_class, a, b=None, x=0, y=0, a_out="", b_out="", **props):
+        """Zwei-Eingangs-Operation (Add/Multiply/...); b kann ein Knoten oder eine Zahl sein (const_b)."""
+        if b is not None and not hasattr(b, "get_class"):
+            props["const_b"] = float(b)
+        node = self.node(expression_class, x, y, **props)
+        self.link(a, a_out, node, "A")
+        if b is not None and hasattr(b, "get_class"):
+            self.link(b, b_out, node, "B")
+        return node
+
+    def lerp(self, a, b, alpha, x=0, y=0, a_out="", b_out="", alpha_out=""):
+        props = {}
+        for key, value in (("const_a", a), ("const_b", b), ("const_alpha", alpha)):
+            if value is not None and not hasattr(value, "get_class"):
+                props[key] = float(value)
+        node = self.node(unreal.MaterialExpressionLinearInterpolate, x, y, **props)
+        for value, pin, out in ((a, "A", a_out), (b, "B", b_out), (alpha, "Alpha", alpha_out)):
+            if hasattr(value, "get_class"):
+                self.link(value, out, node, pin)
+        return node
+
+    def mask(self, source, channels, x=0, y=0, source_out=""):
+        node = self.node(unreal.MaterialExpressionComponentMask, x, y, r="r" in channels, g="g" in channels,
+                         b="b" in channels, a="a" in channels)
+        self.link(source, source_out, node, "")
+        return node
+
+    def unary(self, expression_class, source, x=0, y=0, source_out=""):
+        node = self.node(expression_class, x, y)
+        self.link(source, source_out, node, "")
+        return node
+
+    def mpc(self, collection, name, x, y):
+        expression = self.node(unreal.MaterialExpressionCollectionParameter, x, y)
+        expression.set_editor_property("collection", collection)
+        expression.set_editor_property("parameter_name", name)
+        return expression

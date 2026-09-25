@@ -34,6 +34,7 @@ Abhängigkeiten zeigen nur nach unten. Neue Systeme bekommen ein eigenes Modul, 
 | `AVBStreetBuilder` | VBWorld | Gerade Straße aus dem Kit per Instanced Static Meshes, Regeln für Stadtmöbel, Fahrbahnhöhe `GetRoadSurfaceHeight()` |
 | `AVBTrafficLight` | VBWorld | Ampelzyklus, Linsen über Custom Primitive Data, `OnSignalChanged` / `AllowsPassage()` für den Verkehr |
 | `AVBBuildingBuilder` | VBWorld | Gebäude aus Fassadenmodulen (3-m-Raster), Fassadenmodi Full/Plain/None, Dach + Aufbauten, Farbton je Gebäude (Custom Primitive Data [1]) |
+| `AVBInstancedArray` | VBWorld | Beliebig viele Kopien eines Meshes als ISM (Kaimauer, Promenade, Bäume, Poller) |
 | `AVBPlayerCharacter` | VeyraBay | Third-Person-Figur mit realistischen Geschwindigkeiten, Sprint-FOV, Interaktion |
 | `UVBInputSet` | VeyraBay | Enhanced-Input-Aktionen zur Laufzeit (Tastatur/Maus + Gamepad, Entwickler-Tasten) |
 | `IVBInteractable` / `UVBInteractionComponent` | VeyraBay | Einheitliches Interaktionssystem für Türen, Schalter, Automaten, NPCs, Fahrzeuge |
@@ -74,6 +75,9 @@ Abhängigkeiten zeigen nur nach unten. Neue Systeme bekommen ein eigenes Modul, 
 | AA / Upscaling | TSR (Quality nativ, Performance ~67 %); DLSS/DLAA automatisch, wenn das Plugin installiert ist | Beste Qualität je Hardware |
 | Wetter auf Oberflächen | Master-Material: Porositäts-Abdunklung, Rauheit → 0,12, Pfützen weltbasiert nur auf flachen Flächen, glatte Normalen mit animierten Regenkräuseln (4×4-Flipbook) | Straßen reagieren glaubwürdig und ohne Zusatzkosten pro Objekt |
 | Fenster | `M_VB_Window`: spiegelnde Scheibe + Interior Mapping (HLSL-Custom-Node) als Emissive; Belegung nach Uhrzeit | Glaubwürdige Innenräume und nächtliches Stadtbild ohne echte Innenraumgeometrie |
+| Gelände | Nanite-Kacheln aus einer Höhenfunktion (Blender/numpy); Material mischt Sand/Gras/Fels nach Höhe/Neigung | Deterministisch, versionierbar, kein manuelles Sculpting nötig |
+| Wasser | Single Layer Water (Lumen-kompatibel), Wellen-Normals nach Wind, Schaum aus der Gelände-Höhenkarte | Physikalisch plausibles, performantes Meer ohne Water-Plugin-Abhängigkeit |
+| Vegetation | Nanite-Foliage (maskiert) mit Wind-WPO aus der MPC | Bäume reagieren auf das Wetter |
 | Anti-Tiling | Weltbasierte Makrovariation (23-m-Rauschen) auf jeder Oberfläche | Kachelnde Texturen wiederholen sich nicht sichtbar |
 | Straßen & Möbel | Eigene Blender-Kits mit echter Geometrie (Fasen, Einzelplatten, Relief), Instanced Static Meshes + Nanite | Nahbereich-Detail bei minimalen Draw Calls |
 

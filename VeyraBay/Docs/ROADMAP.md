@@ -51,8 +51,22 @@ Legende: ✅ fertig · 🟡 umgesetzt, wartet auf Test am PC · ⏳ offen
 
 **Abnahme Phase 3:** README, Abschnitt 7c.
 
-## Phase 4 – Ein kleiner Stadtbezirk ⏳
-Straßennetz per Splines + PCG, 6–10 Blöcke, Küstenabschnitt mit Wasser (Water-Plugin), Landschaft/Heightmap, erste HLODs.
+## Phase 4 – Ein kleiner Stadtbezirk (Küste) 🟡
+
+| Baustein | Status |
+|---|---|
+| Gelände 1,6 × 1,6 km als 16 Nanite-Kacheln: Stadtplateau, Hügel, Hafenkai, Sandstrand, Felsküste, Meeresboden | ✅ erzeugt |
+| Oberflächen Sand, Gras, Fels (organisch), Rinde; Ozean-Normals + Schaum; Höhenkarte (16 bit) | ✅ gebacken |
+| `M_VB_Terrain`: Sand/Gras/Fels nach Höhe und Neigung, Fels seitlich projiziert, Nässe | 🟡 |
+| `M_VB_Ocean`: Single Layer Water, zwei Wellenlagen nach Wind, Küstenschaum aus der Höhenkarte | 🟡 |
+| `M_VB_Foliage`: maskiert, zweiseitig, Wind aus der MPC (Stärke + Richtung) | 🟡 |
+| Straßen-Kit: T-Kreuzung und Ecke (gleicher Generator wie die 4er-Kreuzung) | ✅ |
+| Kaimauer (Steinblöcke), Hafenpoller, Promenadengeländer, Promenadenplatten | ✅ |
+| Palme und Platane (prozedural, Blatt-/Wedeltexturen mit Alpha) | ✅ |
+| `AVBInstancedArray` (generische Instanzen), `vb_district.py`: Ringstraße, 8 T-Kreuzungen, 4 Ecken, Promenade, Bäume | 🟡 |
+| Offen: HLOD-Ebenen (Phase 7), Strandzugänge/Treppen, Boote im Hafen, Gras/Büsche (Foliage-Tool) | ⏳ |
+
+**Abnahme Phase 4:** README, Abschnitt 7d.
 
 ## Phase 5 – Fahrzeuge + NPCs ⏳
 Chaos Vehicles (8 fiktive Modelle), Mass-Verkehr mit Ampeln, MetaHuman-NPCs mit Tagesabläufen, Motion Matching, Ein-/Aussteigen.

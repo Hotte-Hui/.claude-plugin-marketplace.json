@@ -182,6 +182,71 @@ def roof_gravel(s):
     return {"color": color, "roughness": roughness, "height": height, "ao": s.lerp(0.6, 1.0, stone_shape), "metallic": 0.0}
 
 
+def sand(s):
+    """Feiner Strandsand mit Rippeln, Muschelbruch und feuchten Stellen."""
+    grains = s.noise(300, 4, 0.7).outputs["Fac"]
+    ripples = s.value(s.math("SINE", s.math("MULTIPLY", s.math("ADD", s.math("MULTIPLY", s.uv(1), 14.0),
+                                                                     s.math("MULTIPLY", s.noise(2.0, 3, 0.5).outputs["Fac"], 2.0)), 6.283185)), 0.5, 0.5)
+    shells = s.math("MULTIPLY", s.math("SUBTRACT", 1.0, s.smoothstep(0.05, 0.25, s.voronoi(90, "F1").outputs["Distance"])),
+                    s.smoothstep(0.92, 0.97, s.voronoi(90, "F1").outputs["Color"]))
+    tone = s.noise(5, 4, 0.5).outputs["Fac"]
+    color = s.mix((0.56, 0.49, 0.38), (0.66, 0.58, 0.45), tone)
+    color = s.mix(color, (0.78, 0.76, 0.72), shells)
+    roughness = s.value(grains, 0.1, 0.86)
+    height = s.math("ADD", s.value(ripples, 0.35, 0.3), s.math("MULTIPLY", grains, 0.15))
+    return {"color": color, "roughness": roughness, "height": height, "ao": s.value(ripples, 0.1, 0.9), "metallic": 0.0}
+
+
+def grass(s):
+    """Trockenes Kuestengras / Erde (Mittelmeerklima), aus der Distanz gleichmaessig."""
+    blades = s.noise_aniso(260.0, 60.0, 4, 0.7).outputs["Fac"]
+    patches = s.smoothstep(0.45, 0.7, s.noise(4, 5, 0.55).outputs["Fac"])
+    dirt = s.smoothstep(0.62, 0.75, s.noise(7, 4, 0.5).outputs["Fac"])
+    color = s.mix((0.16, 0.19, 0.07), (0.30, 0.29, 0.12), patches)
+    color = s.mix(color, (0.10, 0.12, 0.05), s.math("MULTIPLY", s.smoothstep(0.55, 0.8, blades), 0.6))
+    color = s.mix(color, (0.24, 0.18, 0.12), dirt)
+    roughness = s.lerp(0.9, 0.95, dirt)
+    height = s.math("ADD", s.value(blades, 0.4, 0.3), s.math("MULTIPLY", dirt, -0.1))
+    return {"color": color, "roughness": roughness, "height": height, "ao": s.value(blades, 0.3, 0.7), "metallic": 0.0}
+
+
+def rock(s):
+    """Kalkfelsen der Kueste: organische Bloecke, Schichtung, feine Risse, Flechten."""
+    blocks = s.voronoi_warped(5, "F1", warp=1.6, warp_scale=2.5)
+    edges = s.voronoi_warped(5, "DISTANCE_TO_EDGE", warp=1.6, warp_scale=2.5).outputs["Distance"]
+    crack_mask = s.smoothstep(0.45, 0.6, s.noise(6, 4, 0.5).outputs["Fac"])
+    cracks = s.math("MULTIPLY", s.math("SUBTRACT", 1.0, s.smoothstep(0.0, 0.02, edges)), crack_mask)
+    layers = s.noise_aniso(2.0, 11.0, 6, 0.6).outputs["Fac"]
+    detail = s.noise(40, 8, 0.65).outputs["Fac"]
+    pits = s.math("SUBTRACT", 1.0, s.smoothstep(0.02, 0.12, s.voronoi(160, "F1").outputs["Distance"]))
+    lichen = s.smoothstep(0.68, 0.76, s.noise(10, 6, 0.6).outputs["Fac"])
+    color = s.mix((0.40, 0.38, 0.34), (0.60, 0.57, 0.52), layers)
+    color = s.mix(color, (0.34, 0.32, 0.29), s.math("MULTIPLY", blocks.outputs["Color"], 0.35))
+    color = s.mix(color, (0.45, 0.42, 0.22), s.math("MULTIPLY", lichen, 0.45))
+    color = s.mix(color, (0.2, 0.19, 0.17), s.math("MULTIPLY", pits, 0.6))
+    color = s.mix(color, (0.12, 0.12, 0.11), cracks)
+    roughness = s.value(detail, 0.15, 0.78)
+    height = s.math("ADD", s.value(detail, 0.35, 0.2), s.math("MULTIPLY", layers, 0.3))
+    height = s.math("ADD", height, s.math("MULTIPLY", s.smoothstep(0.0, 0.15, edges), 0.15))
+    height = s.math("SUBTRACT", height, s.math("ADD", s.math("MULTIPLY", cracks, 0.5), s.math("MULTIPLY", pits, 0.2)))
+    return {"color": color, "roughness": roughness, "height": height, "ao": s.lerp(1.0, 0.5, cracks), "metallic": 0.0}
+
+
+def bark(s):
+    """Rinde (Platane/Palme): laengs verlaufende Borke mit fleckigen Abplatzungen."""
+    fissures = s.noise_aniso(18.0, 3.0, 6, 0.6).outputs["Fac"]
+    plates = s.voronoi_warped(9, "F1", warp=1.2, warp_scale=3.0)
+    patches = s.smoothstep(0.5, 0.6, plates.outputs["Color"])
+    detail = s.noise(90, 6, 0.6).outputs["Fac"]
+    color = s.mix((0.20, 0.17, 0.13), (0.34, 0.30, 0.24), fissures)
+    color = s.mix(color, (0.45, 0.43, 0.32), s.math("MULTIPLY", patches, 0.6))
+    grooves = s.smoothstep(0.35, 0.2, fissures)
+    color = s.mix(color, (0.08, 0.07, 0.05), s.math("MULTIPLY", grooves, 0.8))
+    roughness = s.value(detail, 0.1, 0.84)
+    height = s.math("SUBTRACT", s.value(fissures, 0.7, 0.2), s.math("MULTIPLY", grooves, 0.4))
+    return {"color": color, "roughness": roughness, "height": height, "ao": s.lerp(1.0, 0.55, grooves), "metallic": 0.0}
+
+
 SURFACES = {
     # Name: (Funktion, Kachelgroesse m, Aufloesung, Normal-Staerke, Unreal-Parameter)
     "Asphalt": (asphalt, 2.0, 2048, 1.0, {"porosity": 0.85, "wetness_response": 1.0, "puddle_response": 1.0}),
@@ -195,6 +260,10 @@ SURFACES = {
                                           "tint": [1.0, 0.86, 0.66], "tint2": [0.82, 0.88, 0.9]}),
     "Sandstone": (sandstone, 1.0, 1024, 0.6, {"porosity": 0.6, "wetness_response": 0.9, "puddle_response": 0.0}),
     "MetalPanel": (metal_panel, 1.0, 1024, 0.3, {"porosity": 0.0, "wetness_response": 0.7, "puddle_response": 0.0}),
+    "Sand": (sand, 3.0, 1024, 0.8, {"porosity": 0.9, "wetness_response": 1.0, "puddle_response": 0.0}),
+    "Grass": (grass, 3.0, 1024, 0.9, {"porosity": 0.8, "wetness_response": 0.8, "puddle_response": 0.0}),
+    "Rock": (rock, 4.0, 1024, 1.0, {"porosity": 0.4, "wetness_response": 1.0, "puddle_response": 0.0}),
+    "Bark": (bark, 1.0, 1024, 1.0, {"porosity": 0.8, "wetness_response": 0.9, "puddle_response": 0.0}),
     "RoofGravel": (roof_gravel, 1.5, 1024, 1.0, {"porosity": 0.8, "wetness_response": 1.0, "puddle_response": 1.0}),
 }
 

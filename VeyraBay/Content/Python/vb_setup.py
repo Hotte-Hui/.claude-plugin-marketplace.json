@@ -19,6 +19,8 @@ import unreal
 
 import vb_common as vb
 import vb_import
+import vb_district
+import vb_materials_nature
 
 MEL = unreal.MaterialEditingLibrary
 
@@ -136,39 +138,7 @@ def create_world_mpc():
 # ---------------------------------------------------------------------------
 # 4. Master-Material
 # ---------------------------------------------------------------------------
-class MaterialGraph:
-    """Kleiner Helfer, um Material-Graphen lesbar per Python aufzubauen."""
-
-    def __init__(self, material):
-        self.material = material
-        self.failed_links = 0
-
-    def node(self, expression_class, x, y, **props):
-        expression = MEL.create_material_expression(self.material, expression_class, x, y)
-        for key, value in props.items():
-            expression.set_editor_property(key, value)
-        return expression
-
-    def scalar(self, name, default, x, y, group="Surface"):
-        return self.node(unreal.MaterialExpressionScalarParameter, x, y,
-                         parameter_name=name, default_value=default, group=group)
-
-    def link(self, source, source_output, target, target_input):
-        if not MEL.connect_material_expressions(source, source_output, target, target_input):
-            self.failed_links += 1
-            vb.warn("Verbindung fehlgeschlagen: %s.%s -> %s.%s" % (
-                source.get_class().get_name(), source_output, target.get_class().get_name(), target_input))
-
-    def output(self, source, source_output, material_property):
-        if not MEL.connect_material_property(source, source_output, material_property):
-            self.failed_links += 1
-            vb.warn("Ausgang fehlgeschlagen: %s -> %s" % (source.get_class().get_name(), material_property))
-
-    def mpc(self, collection, name, x, y):
-        expression = self.node(unreal.MaterialExpressionCollectionParameter, x, y)
-        expression.set_editor_property("collection", collection)
-        expression.set_editor_property("parameter_name", name)
-        return expression
+MaterialGraph = vb.MaterialGraph
 
 
 def build_master_material(mpc):
@@ -985,6 +955,11 @@ def build_dev_map(instances):
     sky = actors.spawn_actor_from_class(unreal.VBSkyEnvironment, unreal.Vector(0, 0, 0))
     vb.tag_actor(sky, "VB_SkyEnvironment", "Lighting", prototype=False)
 
+    # --- Phase 4: Kuestenbezirk (Gelaende, Meer, Ringstrasse, Promenade), falls importiert ---
+    if vb_district.available():
+        counts = vb_district.build(actors, instances, sphere)
+        return counts["buildings"], counts["lamps"]
+
     # --- Boden ------------------------------------------------------------------
     box("Ground", "Dev/Greybox/Ground", (0, 0, -50), (40000, 40000, 100), instances["MI_VB_Dev_Ground"])
 
@@ -1104,6 +1079,7 @@ def run():
         master = build_master_material(mpc)
         instances = create_material_instances(master)
         build_window_material(mpc)
+        vb_materials_nature.build_all(mpc)
 
         task.enter_progress_frame(1, "Blender-Assets importieren (SourceAssets/Export)")
         imported = vb_import.run(show_dialog=False)

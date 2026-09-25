@@ -1,6 +1,6 @@
 {
   "category": "Roads",
-  "triangles": 48192,
+  "triangles": 48726,
   "nanite": true,
   "collision": "complex",
   "puddle_response": 1.0,

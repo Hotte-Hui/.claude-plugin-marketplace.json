@@ -145,9 +145,16 @@ def import_textures(asset_dir, target_folder, base, slot=None, stem=None):
     return result
 
 
+MASTERS = {"Foliage": vb.ROOT + "/Materials/Master/M_VB_Foliage"}
+
+
 def create_material_instance(target_folder, name, textures, params):
     mel = unreal.MaterialEditingLibrary
-    master = unreal.load_asset(vb.MASTER_SURFACE)
+    master_path = MASTERS.get(params.get("master"), vb.MASTER_SURFACE)
+    master = unreal.load_asset(master_path)
+    if master is None and master_path != vb.MASTER_SURFACE:
+        vb.warn("%s fehlt - %s nutzt M_VB_Surface." % (master_path, name))
+        master = unreal.load_asset(vb.MASTER_SURFACE)
     if master is None:
         raise RuntimeError("M_VB_Surface fehlt - zuerst 'Projekt einrichten' ausfuehren.")
 
@@ -236,6 +243,27 @@ def delete_unused_imported_materials(target_folder, keep):
                 unreal.EditorAssetLibrary.delete_asset(package)
 
 
+def import_extra_textures(folder, target_folder):
+    """Weitere Texturen neben D/N/ORM: _M (Maske, linear), _H (Hoehe, 16 bit Graustufen), _N (Normal)."""
+    tcs = unreal.TextureCompressionSettings
+    for file_name in sorted(os.listdir(folder)):
+        stem, ext = os.path.splitext(file_name)
+        if ext.lower() not in (".png", ".tga", ".exr") or stem.endswith(("_D", "_ORM")):
+            continue
+        asset_path = "%s/%s" % (target_folder, stem)
+        if unreal.EditorAssetLibrary.does_asset_exist(asset_path) and stem.endswith("_N"):
+            continue  # Normal Maps wurden bereits von import_textures() behandelt
+        if stem.endswith("_H"):
+            vb.import_texture(os.path.join(folder, file_name), asset_path, srgb=False, compression=tcs.TC_GRAYSCALE)
+        elif stem.endswith("_M"):
+            vb.import_texture(os.path.join(folder, file_name), asset_path, srgb=False, compression=tcs.TC_MASKS)
+        elif stem.endswith("_N"):
+            texture = vb.import_texture(os.path.join(folder, file_name), asset_path, srgb=False, compression=tcs.TC_NORMALMAP)
+            if texture is not None:
+                texture.set_editor_property("flip_green_channel", True)
+                vb.save_asset(texture)
+
+
 def surface_material_path(name):
     return "%s/MI_VB_Surface_%s" % (SURFACE_MATERIALS, name)
 
@@ -256,6 +284,7 @@ def import_surfaces(textures_only=False):
         target = "%s/%s" % (SURFACE_TEXTURES, name)
         unreal.EditorAssetLibrary.make_directory(target)
         textures = import_textures(folder, target, name, stem="T_VB_%s" % name)
+        import_extra_textures(folder, target)
         if textures_only or meta.get("texture_only"):
             results.append("Oberflaeche %s: %d Textur(en)" % (name, len(textures)))
             continue

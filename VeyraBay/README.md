@@ -1,7 +1,7 @@
 # Veyra Bay – Open-World Vertical Slice (Unreal Engine 5.8)
 
 Eine fiktive Küstenstadt als technisch hochwertiger Open-World-Prototyp.
-**Aktueller Stand: Phasen 1–3 umgesetzt: technisches Grundgerüst, hochwertige Straße, kompletter Stadtblock (3 × 3 Blöcke).**
+**Aktueller Stand: Phasen 1–4 umgesetzt: Grundgerüst, hochwertige Straße, Stadtblock, Küstenbezirk mit Gelände, Meer, Promenade und Vegetation.**
 
 | Dokument | Inhalt |
 |---|---|
@@ -110,6 +110,14 @@ Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann
 - [ ] Ampeln an den 4 Kreuzungen: Längs- und Querrichtung schalten gegenläufig
 - [ ] Brandwände über niedrigeren Nachbarn, Dachaufbauten sichtbar
 
+### 7d. Phase-4-Abnahme (Küstenbezirk)
+
+- [ ] Start auf der Uferpromenade: Palmenallee, Kaimauer mit Pollern (Hafen, Westen), Geländer am Strand (Osten)
+- [ ] Meer: Wellen bewegen sich, Stärke folgt dem Wind (F5 → Sturm), Schaum an Strand und Felsen
+- [ ] Gelände: Sand am Wasser, Gras im Hinterland, Fels an Steilhängen; Hügel im Norden
+- [ ] Ringstraße mit T-Kreuzungen und Ecken schließt den Bezirk; Platanen am Stadtrand und im Innenhof
+- [ ] Palmen und Bäume bewegen sich im Wind
+
 Bitte schick mir **Screenshots** (Tag, Nacht, Regen) und bei Problemen den **Output Log** (Fenster → Output Log).
 
 > **Ehrlicher Hinweis:** Alle Inhalte sind selbst erzeugt (Blender, prozedural) und in Blender gerendert geprüft. In Unreal wurde bisher nichts kompiliert oder getestet – das kann nur auf deinem PC passieren. Rechne beim ersten Kompilieren mit einzelnen Fehlern, die ich dann behebe.
@@ -129,9 +137,14 @@ blender -b --factory-startup --python Tools/Blender/surfaces/vb_rain_ripples.py 
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_streetkit.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_StreetKit.blend
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_streetlight.py -- --out SourceAssets/Export --blend SourceAssets/Blender/SM_VB_StreetLight_A.blend
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_facades.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_Facades.blend
+blender -b --factory-startup --python Tools/Blender/surfaces/vb_water_textures.py -- --out SourceAssets/Export
+blender -b --factory-startup --python Tools/Blender/assets/vb_asset_coast.py -- --out SourceAssets/Export
+blender -b --factory-startup --python Tools/Blender/assets/vb_asset_vegetation.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_Vegetation.blend
 # Vorschau des Stadtblocks (gleiche Logik wie in Unreal):
 blender -b --factory-startup --python Tools/Blender/assets/vb_preview_block.py -- --out block.png --view street --textures SourceAssets/Export
+blender -b --factory-startup --python Tools/Blender/assets/vb_preview_district.py -- --out promenade.png --textures SourceAssets/Export
 ```
+Hinweis: `vb_preview_district.py` braucht `SourceAssets/Blender/VB_Coast.blend` – dazu `vb_asset_coast.py` einmal mit `--blend SourceAssets/Blender/VB_Coast.blend` ausführen (die Datei ist wegen ihrer Größe nicht im Repository).
 
 Details: [Docs/CONVENTIONS.md](Docs/CONVENTIONS.md).
 
