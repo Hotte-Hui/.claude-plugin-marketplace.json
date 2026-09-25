@@ -1,0 +1,16 @@
+VEYRA BAY - so geht es los
+==========================
+
+1. Diesen Ordner nach C:\VeyraBay entpacken (die Datei VeyraBay.uproject muss direkt in C:\VeyraBay liegen).
+2. Claude Desktop App oeffnen -> links "Code" -> Ordner C:\VeyraBay auswaehlen.
+3. Diesen Text an Claude schicken:
+
+   Lies Docs/PC_UEBERGABE.md und arbeite die Anleitung komplett und selbststaendig ab:
+   Installiere, was fehlt, kompiliere das Projekt, behebe alle Fehler, fuehre Setup und
+   Stadtbau aus und teste das Spiel. Ich habe keine Programmierkenntnisse. Frag mich nur,
+   wenn es wirklich noetig ist, und erklaere mir am Ende in einfachem Deutsch, wie ich spiele.
+
+4. Wenn Claude fragt, ob es etwas ausfuehren/installieren darf: "Erlauben" klicken.
+
+Hinweis: Das Projekt ist noch nie auf einem echten PC kompiliert worden. Claude auf deinem PC
+behebt die Fehler, die dabei auftauchen. Das kann beim ersten Mal eine Weile dauern.

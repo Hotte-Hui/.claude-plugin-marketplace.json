@@ -6,7 +6,7 @@ einfachem Deutsch sagen, was er anklicken soll. Alles Folgende ist bisher **nie 
 getestet** worden – rechne mit Kompilierfehlern (Engine-API-Details von 5.8) und behebe sie.
 
 ## Ziel
-1. Projekt `VeyraBay/VeyraBay.uproject` kompiliert fehlerfrei (Editor-Ziel `VeyraBayEditor`, Win64, Development).
+1. Projekt `VeyraBay.uproject` (liegt im Projektordner, z. B. `C:\VeyraBay`; im Git-Repository unter `VeyraBay/`) kompiliert fehlerfrei (Editor-Ziel `VeyraBayEditor`, Win64, Development).
 2. Setup läuft unbeaufsichtigt durch (Materialien, Import aller Blender-Exporte, Dev-Karte `L_VB_Dev`).
 3. Stadt `L_VB_City` ist gebaut (Menüpunkt „4. Stadt bauen“ bzw. Headless-Lauf) und HLODs sind gebaut.
 4. Das Spiel startet im Editor (Play) ohne Absturz; Nutzer bekommt kurze Anleitung zum Spielen.
@@ -60,3 +60,9 @@ set VB_STEPS=setup,city
 
 ## Stand
 - (noch nicht auf dem PC ausgeführt)
+
+## Hinweis zur Herkunft
+Der Nutzer hat das Projekt als ZIP bekommen (ohne Git). Zum Zurückmelden: Repository
+`https://github.com/Hotte-Hui/.claude-plugin-marketplace.json` klonen, Branch `claude/awesome-dirac-a44iul`
+auschecken, Korrekturen in den Unterordner `VeyraBay/` übernehmen, committen und pushen. Falls dem Nutzer
+kein GitHub-Zugang möglich ist: die geänderten Dateien auflisten und ihn bitten, sie im Claude-Chat hochzuladen.

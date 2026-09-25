@@ -26,6 +26,23 @@ namespace VBGraphics
 	 */
 	static const FCVarSetting ModeCVars[] =
 	{
+		// Scalability-Gruppen zuerst (setzen viele CVars), danach die gezielten Werte unten:
+		// QUALITY = Cinematic (4) fuer die RTX 4090, PERFORMANCE = Epic (3)
+		{ TEXT("sg.ViewDistanceQuality"),                        TEXT("4"),    TEXT("3") },
+		{ TEXT("sg.AntiAliasingQuality"),                        TEXT("4"),    TEXT("3") },
+		{ TEXT("sg.ShadowQuality"),                              TEXT("4"),    TEXT("3") },
+		{ TEXT("sg.GlobalIlluminationQuality"),                  TEXT("4"),    TEXT("3") },
+		{ TEXT("sg.ReflectionQuality"),                          TEXT("4"),    TEXT("3") },
+		{ TEXT("sg.PostProcessQuality"),                         TEXT("4"),    TEXT("3") },
+		{ TEXT("sg.TextureQuality"),                             TEXT("4"),    TEXT("3") },
+		{ TEXT("sg.EffectsQuality"),                             TEXT("4"),    TEXT("3") },
+		{ TEXT("sg.FoliageQuality"),                             TEXT("4"),    TEXT("3") },
+		{ TEXT("sg.ShadingQuality"),                             TEXT("4"),    TEXT("3") },
+		// Sichtweite der Details und Kontaktschatten
+		{ TEXT("r.ViewDistanceScale"),                           TEXT("1.5"),  TEXT("1") },
+		{ TEXT("r.ContactShadows"),                              TEXT("1"),    TEXT("1") },
+		// Optional: DLSS Frame Generation (Streamline-Plugin, nur wenn installiert)
+		{ TEXT("r.Streamline.DLSSG.Enable"),                     TEXT("1"),    TEXT("1") },
 		// Temporal Super Resolution: nativ vs. ~67 % Renderaufloesung (entspricht "Quality"-Upscaling)
 		{ TEXT("r.AntiAliasingMethod"),                          TEXT("4"),    TEXT("4") },
 		{ TEXT("r.ScreenPercentage"),                            TEXT("100"),  TEXT("67") },
