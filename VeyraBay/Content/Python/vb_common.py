@@ -94,11 +94,20 @@ def save_asset(asset):
         unreal.EditorAssetLibrary.save_loaded_asset(asset, only_if_is_dirty=False)
 
 
+# Unbeaufsichtigter Lauf (vb_headless.py / Kommandozeile): keine Dialogfenster, nur Log
+HEADLESS = os.environ.get("VB_HEADLESS") == "1"
+
+
 def show_message(title, message):
+    if HEADLESS:
+        unreal.log("[VeyraBay] %s: %s" % (title, message))
+        return
     unreal.EditorDialog.show_message(title, message, unreal.AppMsgType.OK)
 
 
 def ask_yes_no(title, message):
+    if HEADLESS:
+        return True
     result = unreal.EditorDialog.show_message(title, message, unreal.AppMsgType.YES_NO)
     return result == unreal.AppReturnType.YES
 
