@@ -5,6 +5,7 @@
 #include "VBPlayerController.generated.h"
 
 class UVBInputSet;
+class UVBMenuWidget;
 class AVBHUD;
 struct FInputActionValue;
 
@@ -16,6 +17,11 @@ class VEYRABAY_API AVBPlayerController : public APlayerController
 public:
 	/** Liefert die (bei Bedarf erzeugten) Eingabeaktionen. */
 	UVBInputSet* GetInputSet();
+
+	/** Start-/Pausenmenue (pausiert das Spiel, Maus sichtbar). */
+	void OpenMenu(bool bStartScreen);
+	void CloseMenu();
+	bool IsMenuOpen() const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -41,4 +47,7 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVBInputSet> InputSet;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVBMenuWidget> Menu;
 };

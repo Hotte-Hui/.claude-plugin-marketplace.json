@@ -336,6 +336,44 @@ def import_surfaces(textures_only=False):
     return results
 
 
+AUDIO_TARGET = vb.ROOT + "/Audio"
+
+
+def import_audio():
+    """Synthetisierte Klaenge (Tools/Audio/vb_audio.py) als Sound Waves; Schleifen laut audio.json."""
+    folder = os.path.join(source_root(), "Audio")
+    meta_path = os.path.join(folder, "audio.json")
+    if not os.path.isfile(meta_path):
+        return []
+    with open(meta_path, "r", encoding="utf-8") as handle:
+        meta = json.load(handle)
+    unreal.EditorAssetLibrary.make_directory(AUDIO_TARGET)
+    results = []
+    for name, info in sorted(meta.items()):
+        wav = os.path.join(folder, name + ".wav")
+        if not os.path.isfile(wav):
+            continue
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", wav)
+        task.set_editor_property("destination_path", AUDIO_TARGET)
+        task.set_editor_property("destination_name", name)
+        task.set_editor_property("automated", True)
+        task.set_editor_property("replace_existing", True)
+        task.set_editor_property("save", False)
+        vb.asset_tools().import_asset_tasks([task])
+        sound = unreal.load_asset("%s/%s" % (AUDIO_TARGET, name))
+        if sound is None:
+            vb.warn("Audio-Import fehlgeschlagen: " + wav)
+            continue
+        try:
+            sound.set_editor_property("looping", bool(info.get("looping")))
+        except Exception:  # noqa: BLE001
+            pass
+        vb.save_asset(sound)
+        results.append(name)
+    return ["Audio: %d Klaenge" % len(results)] if results else []
+
+
 def import_one(category, asset_name, asset_dir, fbx):
     meta = load_meta(asset_dir, asset_name)
     target = CATEGORY_TARGETS[category] + "/" + asset_name
@@ -412,6 +450,11 @@ def run(show_dialog=True):
         results.extend(import_surfaces())
     except Exception as exc:  # noqa: BLE001
         failures.append("Oberflaechen: %s" % exc)
+        vb.error(failures[-1])
+    try:
+        results.extend(import_audio())
+    except Exception as exc:  # noqa: BLE001
+        failures.append("Audio: %s" % exc)
         vb.error(failures[-1])
     with unreal.ScopedSlowTask(len(exports), "Veyra Bay: Assets werden importiert ...") as task:
         task.make_dialog(True)

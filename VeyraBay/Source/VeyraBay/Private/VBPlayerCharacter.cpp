@@ -1,5 +1,6 @@
 #include "VBPlayerCharacter.h"
 
+#include "VBAudioSubsystem.h"
 #include "VBGameSettings.h"
 #include "VBInputSet.h"
 #include "VBInteractionComponent.h"
@@ -151,6 +152,16 @@ void AVBPlayerCharacter::Tick(float DeltaSeconds)
 	// Leichte FOV-Erweiterung beim Sprinten (Geschwindigkeitsgefuehl)
 	const float TargetFOV = IsSprinting() ? SprintFOV : DefaultFOV;
 	FollowCamera->SetFieldOfView(FMath::FInterpTo(FollowCamera->FieldOfView, TargetFOV, DeltaSeconds, 4.f));
+
+	// Schritte
+	if (Movement->IsMovingOnGround())
+	{
+		const float Speed = GetVelocity().Size2D();
+		if (UVBAudioSubsystem::AdvanceStride(StrideDistance, Speed, DeltaSeconds))
+		{
+			UVBAudioSubsystem::PlayFootstep(this, GetActorLocation() - FVector(0.f, 0.f, 90.f), FMath::Clamp(Speed / 450.f, 0.35f, 1.f));
+		}
+	}
 }
 
 float AVBPlayerCharacter::GetTargetSpeed() const

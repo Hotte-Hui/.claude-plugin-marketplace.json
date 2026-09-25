@@ -3,33 +3,52 @@
 #include "CoreMinimal.h"
 #include "Curves/CurveFloat.h"
 #include "GameFramework/Actor.h"
+#include "VBTrafficLight.h"
 #include "VBTrafficVehicle.h"
 #include "VBTrafficManager.generated.h"
 
 class AVBStreetBuilder;
-class AVBTrafficLight;
 
 /** Ein Fahrweg: gerade Spur einer Strasse oder Abbiegekurve in einer Kreuzung (kubische Bezierkurve). */
-struct FVBLane
+USTRUCT()
+struct VBWORLD_API FVBLane
 {
-	FVector P0, P1, P2, P3;
-	float Length = 0.f;
-	TArray<float> ArcTable;              // kumulierte Laenge an gleichmaessigen t-Schritten
-	TArray<int32> Next;                  // folgende Fahrwege
-	TArray<int32> Conflicts;             // Kurven derselben Kreuzung, die sich mit dieser schneiden
-	TWeakObjectPtr<AVBTrafficLight> Signal;
-	int32 Junction = INDEX_NONE;         // Kreuzung am Ende (Strassenspur) bzw. in der die Kurve liegt
-	int32 Street = INDEX_NONE;           // Index des Street Builders (nur Strassenspuren)
-	int32 Source = INDEX_NONE;           // Kurven: kommende Strassenspur
-	int32 Opposing = INDEX_NONE;         // Linksabbieger: Gegenverkehrsspur
-	int32 Turn = 0;                      // -1 links, 0 geradeaus, 1 rechts
-	float SpeedLimit = 1389.f;           // cm/s
-	bool bConnector = false;
+	GENERATED_BODY()
+
+	UPROPERTY() FVector P0 = FVector::ZeroVector;
+	UPROPERTY() FVector P1 = FVector::ZeroVector;
+	UPROPERTY() FVector P2 = FVector::ZeroVector;
+	UPROPERTY() FVector P3 = FVector::ZeroVector;
+	UPROPERTY() float Length = 0.f;
+	UPROPERTY() TArray<float> ArcTable;              // kumulierte Laenge an gleichmaessigen t-Schritten
+	UPROPERTY() TArray<int32> Next;                  // folgende Fahrwege
+	UPROPERTY() TArray<int32> Conflicts;             // Kurven derselben Kreuzung, die sich mit dieser schneiden
+	UPROPERTY() int32 Junction = INDEX_NONE;         // Kreuzung am Ende (Strassenspur) bzw. in der die Kurve liegt
+	UPROPERTY() int32 Street = INDEX_NONE;           // Strasse (nur Strassenspuren)
+	UPROPERTY() int32 Source = INDEX_NONE;           // Kurven: kommende Strassenspur
+	UPROPERTY() int32 Opposing = INDEX_NONE;         // Linksabbieger: Gegenverkehrsspur
+	UPROPERTY() int32 Turn = 0;                      // -1 links, 0 geradeaus, 1 rechts
+	UPROPERTY() float SpeedLimit = 1389.f;           // cm/s
+	UPROPERTY() bool bConnector = false;
+	UPROPERTY() bool bHasSignal = false;
+	UPROPERTY() FVBSignalTiming Signal;              // Ampel am Ende der Strassenspur (Zustand aus der Weltzeit)
 
 	FVector Eval(float T) const;
 	FVector Tangent(float T) const;
 	float ParamAtDistance(float S) const;
 	void Build();
+};
+
+/** Parkplatz am Fahrbahnrand (beim Backen belegt oder nicht, Fahrzeugtyp und Lack fest). */
+USTRUCT()
+struct VBWORLD_API FVBParkingSlot
+{
+	GENERATED_BODY()
+
+	UPROPERTY() FVector Location = FVector::ZeroVector;
+	UPROPERTY() float Yaw = 0.f;
+	UPROPERTY() int32 Type = 0;
+	UPROPERTY() int32 Paint = INDEX_NONE;            // Index in PaintPalette, INDEX_NONE = Typfarbe
 };
 
 /** Ein KI-Fahrzeug im Verkehr. */
@@ -49,15 +68,14 @@ struct FVBTrafficAgent
 };
 
 /**
- * KI-Verkehr (Phase 5): baut beim Spielstart aus allen AVBStreetBuilder-Strassen einen Spurgraphen
- * (Rechtsverkehr, eine Spur je Richtung), verbindet die Spuren in den Kreuzungen mit Abbiegekurven,
- * ordnet die Ampeln zu und simuliert die Autos kinematisch:
- *   - Intelligent Driver Model (Abstand, sanftes Bremsen/Anfahren)
- *   - Ampeln (Rot/Gelb-Entscheidung), Linksabbieger warten auf Gegenverkehr,
- *     Kreuzungen ohne Ampel: wer zuerst da ist, faehrt; Konfliktkurven werden freigehalten
- *   - Spieler (zu Fuss oder im Auto) und fahrbare Autos sind Hindernisse
- *   - Dichte nach Tageszeit und Wetter, Blinker, Bremslichter, Scheinwerfer
- * Zusaetzlich parkende Autos am Fahrbahnrand.
+ * KI-Verkehr: Spurgraph aus allen AVBStreetBuilder-Strassen (Rechtsverkehr, eine Spur je Richtung), Abbiegekurven in
+ * den Kreuzungen, Ampelphasen, Parkplaetze. Der Graph wird im Editor gebacken ("Bake Network", vom Setup-Skript
+ * aufgerufen) und ist dadurch unabhaengig vom World-Partition-Streaming; ohne gebackene Daten wird er beim Start aus
+ * den geladenen Strassen erzeugt (kleine Testkarten).
+ *
+ * Simuliert werden nur Autos in einer Blase um den Spieler (SimulationRadius): Intelligent Driver Model, Ampeln mit
+ * Gelb-Entscheidung, Linksabbieger warten, Kreuzungen ohne Ampel nach Ankunft, Spieler/fahrbare Autos/Fussgaenger als
+ * Hindernisse, Dichte nach Uhrzeit und Wetter. Parkende Autos erscheinen ebenfalls nur in der Naehe.
  */
 UCLASS(ClassGroup = (VeyraBay), meta = (DisplayName = "VB Traffic Manager"))
 class VBWORLD_API AVBTrafficManager : public AActor
@@ -70,16 +88,19 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** Spurgraph und Parkplaetze aus den Strassen der Karte berechnen und speichern. */
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Traffic")
+	void BakeNetwork();
+
 	UFUNCTION(BlueprintPure, Category = "Traffic")
 	int32 GetVehicleCount() const { return Agents.Num(); }
 
 	UFUNCTION(BlueprintPure, Category = "Traffic")
 	int32 GetLaneCount() const { return Lanes.Num(); }
 
-	/** Fussgaenger auf der Fahrbahn melden (Autos halten davor). Wird jeden Frame geleert. */
+	/** Fussgaenger auf der Fahrbahn melden (Autos halten davor). Gilt fuer den naechsten Frame. */
 	void AddTransientObstacle(const FVector& Location, float Radius);
 
-	/** Fahrwege (fuer Debug-Anzeige und Fussgaengersystem). */
 	const TArray<FVBLane>& GetLanes() const { return Lanes; }
 
 	// --- Einstellungen ---------------------------------------------------------------------
@@ -98,18 +119,30 @@ public:
 	float VehiclesPerKm = 22.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Traffic", meta = (ClampMin = "0"))
-	int32 MaxVehicles = 60;
+	int32 MaxVehicles = 80;
+
+	/** Autos fahren nur in diesem Umkreis um den Spieler (cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Traffic", meta = (ClampMin = "5000.0"))
+	float SimulationRadius = 35000.f;
+
+	/** Neue Autos erscheinen nicht naeher als hier (und moeglichst ausserhalb der Sicht). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Traffic", meta = (ClampMin = "0.0"))
+	float MinSpawnDistance = 8000.f;
 
 	/** Dichte ueber den Tag (x = Stunde 0..24, y = Anteil 0..1). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Traffic")
 	FRuntimeFloatCurve DensityByHour;
 
-	/** Anteil der Parkplaetze am Strassenrand, die belegt sind. */
+	/** Anteil der Parkplaetze am Strassenrand, die belegt sind (beim Backen). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parking", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float ParkingOccupancy = 0.55f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parking")
 	bool bSpawnParkedCars = true;
+
+	/** Geparkte Autos erscheinen in diesem Umkreis (cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parking")
+	float ParkedRadius = 22000.f;
 
 	/** Seitlicher Abstand Fahrspur- bzw. Parkstreifenmitte zur Strassenmitte (cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lanes")
@@ -135,13 +168,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Traffic")
 	int32 Seed = 1234;
 
+	// --- Gebackene Daten ---------------------------------------------------------------------
+	UPROPERTY(VisibleAnywhere, Category = "Baked")
+	TArray<FVBLane> Lanes;
+
+	UPROPERTY(VisibleAnywhere, Category = "Baked")
+	TArray<FVBParkingSlot> ParkingSlots;
+
+	UPROPERTY(VisibleAnywhere, Category = "Baked")
+	float TotalLaneLength = 0.f;
+
 private:
-	void BuildGraph();
-	void SpawnParkedCars();
+	void BuildGraph(TArray<FVBLane>& OutLanes, TArray<FVBParkingSlot>& OutSlots, float& OutLength);
+	void UpdateNearLanes();
+	void UpdateParkedCars();
 	void UpdateDensity(float DeltaSeconds);
 	bool TrySpawnAgent(bool bAvoidPlayer);
 	void RemoveAgent(int32 Index);
 	void UpdateObstacles();
+	void RefreshObstacleActors();
 	void StepAgent(FVBTrafficAgent& Agent, int32 AgentIndex, float DeltaSeconds);
 	void PlaceAgent(FVBTrafficAgent& Agent, float DeltaSeconds, bool bBraking);
 	void EnsureRoute(FVBTrafficAgent& Agent);
@@ -151,23 +196,30 @@ private:
 	float ObstacleGap(const FVBTrafficAgent& Agent) const;
 	float DesiredSpeed(const FVBTrafficAgent& Agent) const;
 	float WeatherFactor() const;
-	int32 PickType(bool bParked);
-	FLinearColor PickPaint(const FVBTrafficVehicleType& Type);
-	float DistanceToPlayer(const FVector& Location) const;
+	int32 PickType(bool bParked, FRandomStream& Stream) const;
+	FLinearColor PaintFor(const FVBTrafficVehicleType& Type, int32 PaintIndex) const;
+	bool GetPlayerView(FVector& OutLocation, FVector& OutDirection) const;
+	float DistanceToPlayer(const FVector& Location, bool* bOutInView = nullptr) const;
 	void DrawDebug() const;
 
-	TArray<FVBLane> Lanes;
 	TArray<FVBTrafficAgent> Agents;
 	TArray<TWeakObjectPtr<AActor>> ObstacleActors;
 	TArray<FVector4> TransientObstacles;       // xyz + Radius
 	TArray<FVector4> FrameObstacles;
-	TArray<TObjectPtr<AVBTrafficVehicle>> ParkedCars;
 	TArray<TArray<int32>> AgentsOnLane;
-	float TotalLaneLength = 0.f;
+	TArray<int32> NearLanes;                    // Strassenspuren in der Simulationsblase
+	TArray<TArray<int32>> JunctionIncoming;     // Kreuzung -> ankommende Strassenspuren
+	float NearLaneLength = 0.f;
 	float SpawnTimer = 0.f;
-	float ObstacleTimer = 0.f;
+	float NearTimer = 0.f;
+	float ParkedTimer = 0.f;
+	float ObstacleRefreshTimer = 0.f;
+	FVector PlayerLocation = FVector::ZeroVector;
 	FRandomStream Random;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AVBTrafficVehicle>> SpawnedActors;
+
+	UPROPERTY(Transient)
+	TMap<int32, TObjectPtr<AVBTrafficVehicle>> ParkedActors;
 };

@@ -24,4 +24,10 @@ public:
 	void StandFacing(const FVector& Direction);
 
 	void SetWalkSpeed(float Speed);
+
+	/** Schrittgeraeusche (nur fuer Passanten nahe am Spieler aufrufen). */
+	void UpdateFootsteps(float DeltaSeconds);
+
+private:
+	float StrideDistance = 0.f;
 };

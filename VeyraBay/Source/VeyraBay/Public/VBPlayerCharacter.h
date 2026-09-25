@@ -83,6 +83,7 @@ private:
 	float GetTargetSpeed() const;
 
 	bool bSprintHeld = false;
+	float StrideDistance = 0.f;
 	bool bWalkMode = false;
 	bool bHasCharacterMesh = false;
 };

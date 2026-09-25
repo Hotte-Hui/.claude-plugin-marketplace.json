@@ -6,7 +6,9 @@
 #include "VBInteractable.h"
 #include "VBVehicle.generated.h"
 
+class UAudioComponent;
 class UCameraComponent;
+class USoundBase;
 class USpotLightComponent;
 class USpringArmComponent;
 class UStaticMesh;
@@ -106,6 +108,18 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USpotLightComponent> HeadlightRight;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UAudioComponent> EngineAudio;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UAudioComponent> TireAudio;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UAudioComponent> IndicatorAudio;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UAudioComponent> HornAudio;
+
 	// --- Fahrzeugdaten (vom Setup-Skript aus vehicles.json gesetzt) --------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle|Spec")
 	FName VehicleType = TEXT("Sedan");
@@ -170,6 +184,7 @@ protected:
 	void UpdateGrip();
 	void UpdateCamera(float DeltaSeconds);
 	void SetCPD(int32 Index, float Value);
+	void UpdateAudio(float DeltaSeconds);
 
 private:
 	void Input_Throttle(const FInputActionValue& Value);
@@ -186,6 +201,8 @@ private:
 	void Input_Lights(const FInputActionValue& Value);
 	void Input_Reset(const FInputActionValue& Value);
 	void Input_Camera(const FInputActionValue& Value);
+	void Input_HornPressed(const FInputActionValue& Value);
+	void Input_HornReleased(const FInputActionValue& Value);
 
 	FVector WheelBaseLocation(int32 Index) const;
 
@@ -203,4 +220,7 @@ private:
 	FRotator LookOffset = FRotator::ZeroRotator;
 	float TimeSinceLook = 100.f;
 	int32 CameraPreset = 0;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USoundBase> DoorSound;
 };

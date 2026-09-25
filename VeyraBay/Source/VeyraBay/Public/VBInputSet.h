@@ -44,6 +44,7 @@ public:
 	UPROPERTY() TObjectPtr<UInputAction> VehicleLights;
 	UPROPERTY() TObjectPtr<UInputAction> VehicleReset;
 	UPROPERTY() TObjectPtr<UInputAction> VehicleCamera;
+	UPROPERTY() TObjectPtr<UInputAction> Horn;
 
 	// --- Entwickler-Tasten (nicht in Shipping-Builds) ------------------------
 	UPROPERTY() TObjectPtr<UInputAction> DebugPerf;

@@ -1,5 +1,6 @@
 #include "VBPedestrian.h"
 
+#include "VBAudioSubsystem.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -56,4 +57,13 @@ void AVBPedestrian::StandFacing(const FVector& Direction)
 	const FRotator Current = GetActorRotation();
 	const FRotator Wanted(0.f, Flat.Rotation().Yaw, 0.f);
 	SetActorRotation(FMath::RInterpTo(Current, Wanted, GetWorld()->GetDeltaSeconds(), 3.f));
+}
+
+void AVBPedestrian::UpdateFootsteps(float DeltaSeconds)
+{
+	const float Speed = GetVelocity().Size2D();
+	if (UVBAudioSubsystem::AdvanceStride(StrideDistance, Speed, DeltaSeconds))
+	{
+		UVBAudioSubsystem::PlayFootstep(this, GetActorLocation() - FVector(0.f, 0.f, 90.f), 0.35f);
+	}
 }

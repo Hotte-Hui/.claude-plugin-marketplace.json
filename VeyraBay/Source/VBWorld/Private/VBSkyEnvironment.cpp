@@ -1,6 +1,7 @@
 #include "VBSkyEnvironment.h"
 
 #include "VBSolarMath.h"
+#include "VBStats.h"
 #include "VBTimeOfDaySubsystem.h"
 #include "VBWeatherSubsystem.h"
 #include "VBWorldDeveloperSettings.h"
@@ -188,8 +189,11 @@ void AVBSkyEnvironment::BeginPlay()
 	ApplyInputs(GatherRuntimeInputs(), /*bForce*/ true);
 }
 
+DECLARE_CYCLE_STAT(TEXT("Himmel/Wetter (Tick)"), STAT_VBSky, STATGROUP_VeyraBay);
+
 void AVBSkyEnvironment::Tick(float DeltaSeconds)
 {
+	SCOPE_CYCLE_COUNTER(STAT_VBSky);
 	Super::Tick(DeltaSeconds);
 	const FVBSkyInputs Inputs = GatherRuntimeInputs();
 	ApplyInputs(Inputs, /*bForce*/ false);

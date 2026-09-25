@@ -243,9 +243,66 @@ def build_stars(mpc):
     return _finish(material, g)
 
 
+# ---------------------------------------------------------------------------
+# Missionsmarker und Feuerwerksfunken (Phase 9)
+# ---------------------------------------------------------------------------
+MARKER = SKY.replace("/Sky", "/Gameplay") + "/M_VB_MissionMarker"
+SPARK = SKY.replace("/Sky", "/Gameplay") + "/M_VB_Spark"
+
+
+def build_marker(mpc):
+    """Leuchtender Zylinder: nach oben ausblendend, pulsierend, Farbe als Parameter."""
+    material = _material(MARKER)
+    _set(material, blend_mode=unreal.BlendMode.BLEND_ADDITIVE, shading_model=unreal.MaterialShadingModel.MSM_UNLIT, two_sided=True)
+    g = vb.MaterialGraph(material)
+    op = g.op
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, -900, 0)
+    v = g.mask(uv, "g", -750, 0)
+    height_fade = g.unary(unreal.MaterialExpressionOneMinus, v, -600, 0)
+    pulse = op(unreal.MaterialExpressionAdd, op(unreal.MaterialExpressionMultiply,
+               g.unary(unreal.MaterialExpressionSine, op(unreal.MaterialExpressionMultiply, g.node(unreal.MaterialExpressionTime, -900, 200),
+                                                         1.5, x=-750, y=200), -600, 200), 0.25, x=-450, y=200), 0.75, x=-300, y=200)
+    color = g.node(unreal.MaterialExpressionVectorParameter, -600, -200, parameter_name="Color",
+                   default_value=unreal.LinearColor(1.0, 0.75, 0.2, 1.0), group="Marker")
+    intensity = g.scalar("Intensity", 8.0, -450, -100, group="Marker")
+    emissive = op(unreal.MaterialExpressionMultiply,
+                  op(unreal.MaterialExpressionMultiply, op(unreal.MaterialExpressionMultiply, color, height_fade, x=-300, y=-150),
+                     pulse, x=-150, y=-100), intensity, x=0, y=-100)
+    g.output(emissive, "", MP.MP_EMISSIVE_COLOR)
+    return _finish(material, g)
+
+
+def build_spark(mpc):
+    """Feuerwerksfunke: Farbe und Helligkeit pro Instanz (PerInstanceCustomData 0..3)."""
+    material = _material(SPARK)
+    _set(material, shading_model=unreal.MaterialShadingModel.MSM_UNLIT)
+    for usage_name in ("MATL_INSTANCED_STATIC_MESHES",):
+        usage = getattr(unreal.MaterialUsage, usage_name, None)
+        if usage is not None:
+            try:
+                MEL.set_material_usage(material, usage)
+            except Exception:  # noqa: BLE001
+                pass
+    g = vb.MaterialGraph(material)
+    op = g.op
+    channels = []
+    for index in range(4):
+        node = g.node(unreal.MaterialExpressionPerInstanceCustomData, -600, index * 120, data_index=index)
+        channels.append(node)
+    rgb = g.node(unreal.MaterialExpressionAppendVector, -400, 0)
+    rg = g.node(unreal.MaterialExpressionAppendVector, -500, 0)
+    g.link(channels[0], "", rg, "A")
+    g.link(channels[1], "", rg, "B")
+    g.link(rg, "", rgb, "A")
+    g.link(channels[2], "", rgb, "B")
+    g.output(op(unreal.MaterialExpressionMultiply, rgb, channels[3], x=-200, y=100), "", MP.MP_EMISSIVE_COLOR)
+    return _finish(material, g)
+
+
 def build_all(mpc):
     results = {}
-    for name, builder in (("Clouds", build_clouds), ("Rain", build_rain), ("Stars", build_stars)):
+    for name, builder in (("Clouds", build_clouds), ("Rain", build_rain), ("Stars", build_stars), ("Marker", build_marker),
+                          ("Spark", build_spark)):
         try:
             results[name] = builder(mpc)
         except Exception as exc:  # noqa: BLE001

@@ -37,7 +37,9 @@ AVBStreetBuilder::AVBStreetBuilder()
 	for (int32 Index = 0; Index < MaxPropRules; ++Index)
 	{
 		const FString Name = FString::Printf(TEXT("PropInstances_%d"), Index);
-		PropInstances.Add(VBStreet::CreateInstances(this, Root, *Name));
+		UInstancedStaticMeshComponent* Props = VBStreet::CreateInstances(this, Root, *Name);
+		Props->SetCullDistances(12000, 15000);        // Stadtmoebel ab 120-150 m ausblenden
+		PropInstances.Add(Props);
 	}
 }
 

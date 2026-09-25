@@ -3,6 +3,7 @@
 #include "VBGraphicsSubsystem.h"
 #include "VBHUD.h"
 #include "VBInputSet.h"
+#include "VBMenuWidget.h"
 #include "VBTimeOfDaySubsystem.h"
 #include "VBVehicle.h"
 #include "VBWeatherSubsystem.h"
@@ -32,7 +33,52 @@ void AVBPlayerController::BeginPlay()
 	{
 		SetInputMode(FInputModeGameOnly());
 		SetShowMouseCursor(false);
+		// Stadtkarte: mit dem Startbildschirm beginnen
+		if (GetWorld()->GetMapName().Contains(TEXT("L_VB_City")))
+		{
+			OpenMenu(true);
+		}
 	}
+}
+
+void AVBPlayerController::OpenMenu(bool bStartScreen)
+{
+	if (!Menu)
+	{
+		Menu = CreateWidget<UVBMenuWidget>(this, UVBMenuWidget::StaticClass());
+	}
+	if (!Menu)
+	{
+		return;
+	}
+	Menu->SetStartScreen(bStartScreen);
+	if (!Menu->IsInViewport())
+	{
+		Menu->AddToViewport(100);
+	}
+	Menu->RefreshLabels();
+	FInputModeGameAndUI Mode;
+	Mode.SetWidgetToFocus(Menu->TakeWidget());
+	Mode.SetHideCursorDuringCapture(false);
+	SetInputMode(Mode);
+	SetShowMouseCursor(true);
+	UGameplayStatics::SetGamePaused(this, true);
+}
+
+void AVBPlayerController::CloseMenu()
+{
+	if (Menu && Menu->IsInViewport())
+	{
+		Menu->RemoveFromParent();
+	}
+	SetInputMode(FInputModeGameOnly());
+	SetShowMouseCursor(false);
+	UGameplayStatics::SetGamePaused(this, false);
+}
+
+bool AVBPlayerController::IsMenuOpen() const
+{
+	return Menu && Menu->IsInViewport();
 }
 
 void AVBPlayerController::SetupInputComponent()
@@ -101,8 +147,14 @@ AVBHUD* AVBPlayerController::GetVBHUD() const
 
 void AVBPlayerController::Input_Pause(const FInputActionValue& Value)
 {
-	const bool bPause = !IsPaused();
-	UGameplayStatics::SetGamePaused(this, bPause);
+	if (IsMenuOpen())
+	{
+		CloseMenu();
+	}
+	else
+	{
+		OpenMenu(false);
+	}
 }
 
 void AVBPlayerController::Debug_CyclePerf(const FInputActionValue& Value)

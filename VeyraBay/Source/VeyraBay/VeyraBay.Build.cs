@@ -15,6 +15,11 @@ public class VeyraBay : ModuleRules
 			"EnhancedInput",
 			"DeveloperSettings",
 			"PhysicsCore",
+			"RenderCore",
+			"UMG",
+			"Slate",
+			"SlateCore",
+			"RHI",
 			"ChaosVehicles",
 			"VBCore",
 			"VBWorld"

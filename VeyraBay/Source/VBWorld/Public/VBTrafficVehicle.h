@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "VBTrafficVehicle.generated.h"
 
+class UAudioComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 
@@ -75,17 +76,23 @@ public:
 
 	/**
 	 * Raeder drehen/lenken und Lichter setzen.
-	 * Indicator: -1 links, 1 rechts, 0 aus. Lights: 0..1 (Scheinwerfer).
+	 * Indicator: -1 links, 1 rechts, 2 Warnblinker, 0 aus. Lights: 0..1 (Scheinwerfer).
 	 */
 	void UpdateVisuals(float DeltaSeconds, float SpeedCm, float SteerDegrees, bool bBraking, bool bLights, int32 Indicator);
 
 	const FVBTrafficVehicleType& GetType() const { return Type; }
+
+	/** Motorgeraeusch nur in Hoerweite (bNear) - Tonhoehe nach Tempo. */
+	void UpdateAudio(float SpeedCm, bool bNear);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> Body;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TArray<TObjectPtr<UStaticMeshComponent>> Wheels;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UAudioComponent> EngineAudio;
 
 private:
 	void SetCPD(int32 Index, float Value);

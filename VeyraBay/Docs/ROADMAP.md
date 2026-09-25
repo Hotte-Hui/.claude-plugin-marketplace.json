@@ -94,11 +94,43 @@ Legende: ✅ fertig · 🟡 umgesetzt, wartet auf Test am PC · ⏳ offen
 
 **Abnahme Phase 6:** README, Abschnitt 7f.
 
-## Phase 7 – Streaming + Open World ⏳
-Alle 12 Bezirke als Blockout, World-Partition-Zellen, Data Layers für Events, HLOD für die Fernsicht, Autobahnnetz.
+## Phase 7 – Streaming + Open World 🟡
 
-## Phase 8 – Optimierung ⏳
-Automatischer Benchmark-Kameraflug, Insights-Profile, Budgets je System, Shader-Vorkompilierung (PSO-Cache).
+| Baustein | Status |
+|---|---|
+| `vb_cityplan.py`: Stadtplan als Daten (12 Bezirke, Straßenraster mit Hauptachsen, Küste, Bebauungstypen) – gemeinsame Quelle für Blender und Unreal | ✅ |
+| Stadtgelände 7,2 × 4,2 km (84 Nanite-Kacheln, flache Stadtebene zusammengefasst), Hügel, Monte Veyra, Hafenkai/Strand/Marina, Höhenkarte für Meer und Hangbebauung | ✅ erzeugt |
+| Bebauung je Typ: Blockrand (Altstadt, Mercato, Nordstadt …), Hochhäuser (Bayfront), Lagerhallen (Hafen), Industrie, Einfamilienhäuser (Weststadt), Campus/Parks, Villen am Hang | ✅ (Blender-Vorschau) |
+| `vb_city.py` + `UVBBuildLibrary`: ~1 350 Kreuzungen, ~2 650 Straßen, ~10 900 Gebäude, Ampeln an Hauptachsen, Laternen, Alleen, 5,7 km Uferpromenade in `L_VB_City` (World Partition) | 🟡 |
+| Verkehr/Passanten für die offene Welt: Netze werden gebacken, Simulation nur um den Spieler, Ampelphasen aus der Weltzeit | 🟡 |
+| Ozean-Material mit austauschbarer Höhenkarte (`MI_VB_OceanCity`) | 🟡 |
+| Offen: HLOD-Layer-Feinschliff, Data Layers für Events, Autobahn/Brücken, Kurven- und Hangstraßen, Wahrzeichen je Bezirk | ⏳ |
 
-## Phase 9 – Polishing ⏳
-Common-UI-Menüs, Audio-Mix, Story-Vertical-Slice (3 Missionen), dynamische Stadt-Events, Color Grading pro Bezirk.
+**Abnahme Phase 7:** README, Abschnitt 7g.
+
+## Phase 8 – Optimierung 🟡
+
+| Baustein | Status |
+|---|---|
+| `vb.Benchmark [Sekunden] [all]`: Kameraflug (Promenade → Straßenschlucht → Hochhäuser → Marina), CSV + Zusammenfassung in `Saved/Benchmarks`, optional beide Grafikmodi | 🟡 |
+| `stat VeyraBay`: Zeiten für Verkehr, Passanten, Himmel/Wetter + Anzahl Fahrzeuge/Passanten; Budgets im Code dokumentiert (`VBStats.h`) | 🟡 |
+| Laternen-Licht nur bis 150 m (weich ausgeblendet), Stadtmöbel-Instanzen ab 150 m, Dachaufbauten ab 400 m ausgeblendet | 🟡 |
+| Simulation nur um den Spieler (Verkehr 350 m, parkende Autos 220 m, Passanten 160 m), Kreuzungs-/Knotensuche über Raster | 🟡 |
+| PSO-Precaching, Textur-Pool 8 GB, World-Partition-Ladebudget | 🟡 |
+| Offen: Messwerte vom Ziel-PC (4090 / 7950X3D) auswerten, HLOD-Layer abstimmen, Insights-Profile je Bezirk | ⏳ |
+
+**Abnahme Phase 8:** README, Abschnitt 7h.
+
+## Phase 9 – Polishing 🟡
+
+| Baustein | Status |
+|---|---|
+| Klänge komplett selbst synthetisiert (`Tools/Audio/vb_audio.py`): Regen leicht/stark, Wind, Meer, Stadt, Vögel, Grillen, 3× Donner, Motor, Reifen, Hupe, Blinker, Schritte, Autotür, UI, Straßenmusik (eigene Gitarrenmusik) | ✅ erzeugt |
+| `UVBAudioSubsystem`: Klangkulisse nach Wetter/Tageszeit/Küstenabstand, Donner mit Laufzeit; Motor nach Drehzahl, Reifen nach Tempo, Blinker, Hupe (H), Türen; Schritte für Spieler und nahe Passanten; Motoren im KI-Verkehr | 🟡 |
+| Story „Castell Transporte“ (eigene Handlung): Missionen Heimkehr, Lieferrunde (Zeitlimit), Sturmflut (Unwetter); Lichtsäulen-Marker, Dialoge, Timer, Spielstand | 🟡 |
+| Dynamische Ereignisse: Panne mit Stau, Straßenmusik, Hafenfest-Feuerwerk (Funken-Instanzen, Lichtblitz, Knall mit Schallverzögerung) | 🟡 |
+| Start- und Pausenmenü (UMG in C++): Grafikmodus, dynamisches Wetter, Lautstärke, Mission neu starten, Neues Spiel, Beenden | 🟡 |
+| Bezirks-Farbstimmung (`AVBDistrictGrading`), weich überblendet | 🟡 |
+| Offen: MetaHuman-Charaktere und Sprachaufnahmen, Common-UI-Styling, Musik-Soundtrack, Niagara-Effekte, weitere Missionen | ⏳ |
+
+**Abnahme Phase 9:** README, Abschnitt 7i.

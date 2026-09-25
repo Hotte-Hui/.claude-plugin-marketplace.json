@@ -20,6 +20,27 @@ enum class EVBSignalState : uint8
 	Amber
 };
 
+/**
+ * Phasenplan einer Ampel. Der Zustand haengt nur von der Weltzeit ab - dadurch zeigen Ampel-Actor,
+ * Verkehr und Fussgaenger immer dasselbe, auch wenn der Actor (World Partition) gerade nicht geladen ist.
+ */
+USTRUCT(BlueprintType)
+struct VBWORLD_API FVBSignalTiming
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timing") float Green = 14.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timing") float Amber = 3.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timing") float Red = 18.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timing") float RedAmber = 1.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timing") float Offset = 0.f;
+
+	float CycleLength() const { return FMath::Max(Green + Amber + Red + RedAmber, 1.f); }
+
+	/** Zustand zur Weltzeit; optional Sekunden bis zum naechsten Wechsel. */
+	EVBSignalState StateAt(double WorldSeconds, float* OutTimeUntilChange = nullptr) const;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FVBOnSignalChanged, AVBTrafficLight*, Light, EVBSignalState, NewState);
 
 /**
@@ -53,6 +74,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Traffic Light")
 	FVBOnSignalChanged OnSignalChanged;
+
+	/** Phasenplan dieser Ampel (fuer Verkehr/Fussgaenger, die den Zustand ohne geladenen Actor berechnen). */
+	FVBSignalTiming GetTiming() const;
 
 	// --- Modelle ----------------------------------------------------------------------
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Traffic Light")

@@ -85,7 +85,7 @@ void AVBTrafficLight::BeginPlay()
 	SetupLensMaterial(LensAmber, VBSignal::Amber);
 	SetupLensMaterial(LensGreen, VBSignal::Green);
 
-	CycleTime = FMath::Fmod(FMath::Max(CycleOffset, 0.f), GetCycleLength());
+	CycleTime = static_cast<float>(FMath::Fmod(GetWorld()->GetTimeSeconds() + static_cast<double>(FMath::Max(CycleOffset, 0.f)), static_cast<double>(GetCycleLength())));
 	bHasState = false;
 	ApplyState(StateAtCycleTime(CycleTime), /*bBroadcast*/ true);
 }
@@ -94,12 +94,48 @@ void AVBTrafficLight::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	CycleTime = FMath::Fmod(CycleTime + DeltaSeconds, GetCycleLength());
+	// Aus der Weltzeit statt aufsummiert: nachgeladene Ampeln bleiben synchron mit Verkehr und Nachbarn
+	CycleTime = static_cast<float>(FMath::Fmod(GetWorld()->GetTimeSeconds() + static_cast<double>(FMath::Max(CycleOffset, 0.f)), static_cast<double>(GetCycleLength())));
 	const EVBSignalState NewState = StateAtCycleTime(CycleTime);
 	if (NewState != State)
 	{
 		ApplyState(NewState, /*bBroadcast*/ true);
 	}
+}
+
+FVBSignalTiming AVBTrafficLight::GetTiming() const
+{
+	FVBSignalTiming Timing;
+	Timing.Green = GreenSeconds;
+	Timing.Amber = AmberSeconds;
+	Timing.Red = RedSeconds;
+	Timing.RedAmber = RedAmberSeconds;
+	Timing.Offset = FMath::Max(CycleOffset, 0.f);
+	return Timing;
+}
+
+EVBSignalState FVBSignalTiming::StateAt(double WorldSeconds, float* OutTimeUntilChange) const
+{
+	const float Length = CycleLength();
+	const float Time = static_cast<float>(FMath::Fmod(WorldSeconds + static_cast<double>(Offset), static_cast<double>(Length)));
+	const float Boundaries[4] = { Green, Green + Amber, Green + Amber + Red, Length };
+	static const EVBSignalState States[4] = { EVBSignalState::Green, EVBSignalState::Amber, EVBSignalState::Red, EVBSignalState::RedAmber };
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		if (Time < Boundaries[Index])
+		{
+			if (OutTimeUntilChange)
+			{
+				*OutTimeUntilChange = Boundaries[Index] - Time;
+			}
+			return States[Index];
+		}
+	}
+	if (OutTimeUntilChange)
+	{
+		*OutTimeUntilChange = 0.f;
+	}
+	return EVBSignalState::RedAmber;
 }
 
 float AVBTrafficLight::GetCycleLength() const

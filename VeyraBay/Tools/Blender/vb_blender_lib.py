@@ -606,7 +606,7 @@ def bake_surface(name, build, out_root, size=1024, tile_meters=1.0, normal_stren
 # Vorschau
 # ---------------------------------------------------------------------------
 def render_preview(path, target, camera_location, resolution=(900, 600), lens=50.0, samples=32, sun_angle=(50.0, 0.0, 30.0),
-                   ground=True, preview_textures_root=None):
+                   ground=True, preview_textures_root=None, ground_size=400.0):
     scene = bpy.context.scene
     for obj in scene.objects:
         if obj.name.startswith("UCX_"):
@@ -614,7 +614,7 @@ def render_preview(path, target, camera_location, resolution=(900, 600), lens=50
     if preview_textures_root:
         apply_surface_previews(preview_textures_root)
     if ground:
-        bpy.ops.mesh.primitive_plane_add(size=400, location=(target[0], target[1], -0.001))
+        bpy.ops.mesh.primitive_plane_add(size=ground_size, location=(target[0], target[1], -0.001))
         ground_obj = bpy.context.active_object
         material = bpy.data.materials.new("PreviewGround")
         material.use_nodes = True

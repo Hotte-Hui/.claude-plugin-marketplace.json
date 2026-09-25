@@ -32,6 +32,7 @@ AVBBuildingBuilder::AVBBuildingBuilder()
 		UInstancedStaticMeshComponent* Instances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(*FString::Printf(TEXT("RoofProp_%d"), Index));
 		Instances->SetupAttachment(Root);
 		Instances->SetMobility(EComponentMobility::Static);
+		Instances->SetCullDistances(30000, 40000);    // Dachaufbauten ab 300-400 m ausblenden
 		RoofPropInstances.Add(Instances);
 	}
 }

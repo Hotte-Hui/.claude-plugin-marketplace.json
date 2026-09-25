@@ -2,9 +2,13 @@
 
 #include "VBInputSet.h"
 #include "VBPlayerController.h"
+#include "VBAudioSubsystem.h"
 #include "VBTimeOfDaySubsystem.h"
 #include "VBWeatherSubsystem.h"
 #include "Camera/CameraComponent.h"
+#include "Components/AudioComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 #include "ChaosWheeledVehicleMovementComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SpotLightComponent.h"
@@ -125,6 +129,24 @@ AVBVehicle::AVBVehicle(const FObjectInitializer& ObjectInitializer)
 	HeadlightLeft = MakeHeadlight(TEXT("HeadlightLeft"));
 	HeadlightRight = MakeHeadlight(TEXT("HeadlightRight"));
 	HeadlightRight->SetCastShadows(false);      // ein Schatten reicht optisch, spart GPU-Zeit
+
+	// Klang: Motor (Tonhoehe nach Drehzahl), Reifen (nach Tempo), Blinker, Hupe - raeumlich, 40 m Reichweite
+	auto MakeAudio = [this](const TCHAR* Name)
+	{
+		UAudioComponent* Audio = CreateDefaultSubobject<UAudioComponent>(Name);
+		Audio->SetupAttachment(GetMesh());
+		Audio->bAutoActivate = false;
+		Audio->bOverrideAttenuation = true;
+		Audio->AttenuationOverrides.bAttenuate = true;
+		Audio->AttenuationOverrides.bSpatialize = true;
+		Audio->AttenuationOverrides.AttenuationShapeExtents = FVector(600.f, 0.f, 0.f);
+		Audio->AttenuationOverrides.FalloffDistance = 4000.f;
+		return Audio;
+	};
+	EngineAudio = MakeAudio(TEXT("EngineAudio"));
+	TireAudio = MakeAudio(TEXT("TireAudio"));
+	IndicatorAudio = MakeAudio(TEXT("IndicatorAudio"));
+	HornAudio = MakeAudio(TEXT("HornAudio"));
 
 	UChaosWheeledVehicleMovementComponent* Movement = GetWheeledMovement();
 	Movement->WheelSetups.SetNum(4);
@@ -253,6 +275,12 @@ void AVBVehicle::BeginPlay()
 	// Ohne Fahrer: Handbremse angezogen
 	Movement->SetHandbrakeInput(true);
 	UpdateGrip();
+
+	EngineAudio->SetSound(UVBAudioSubsystem::LoadSound(TEXT("Engine")));
+	TireAudio->SetSound(UVBAudioSubsystem::LoadSound(TEXT("Tires")));
+	IndicatorAudio->SetSound(UVBAudioSubsystem::LoadSound(TEXT("Indicator")));
+	HornAudio->SetSound(UVBAudioSubsystem::LoadSound(TEXT("Horn")));
+	DoorSound = UVBAudioSubsystem::LoadSound(TEXT("CarDoor"));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -290,6 +318,12 @@ void AVBVehicle::Interact_Implementation(AActor* Interactor)
 	LookOffset = FRotator::ZeroRotator;
 	DriverController->Possess(this);
 	GetWheeledMovement()->SetHandbrakeInput(false);
+	if (DoorSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, DoorSound, GetActorLocation());
+	}
+	EngineAudio->Play();
+	TireAudio->Play();
 }
 
 bool AVBVehicle::ExitVehicle()
@@ -341,6 +375,13 @@ bool AVBVehicle::ExitVehicle()
 
 	APawn* OldDriver = Driver;
 	Driver = nullptr;
+	EngineAudio->FadeOut(0.6f, 0.f);
+	TireAudio->Stop();
+	HornAudio->Stop();
+	if (DoorSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, DoorSound, GetActorLocation(), 1.f, 0.95f);
+	}
 	if (PlayerController)
 	{
 		PlayerController->Possess(OldDriver);
@@ -378,6 +419,8 @@ void AVBVehicle::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 	Input->BindAction(Set->VehicleLights, ETriggerEvent::Started, this, &AVBVehicle::Input_Lights);
 	Input->BindAction(Set->VehicleReset, ETriggerEvent::Started, this, &AVBVehicle::Input_Reset);
 	Input->BindAction(Set->VehicleCamera, ETriggerEvent::Started, this, &AVBVehicle::Input_Camera);
+	Input->BindAction(Set->Horn, ETriggerEvent::Started, this, &AVBVehicle::Input_HornPressed);
+	Input->BindAction(Set->Horn, ETriggerEvent::Completed, this, &AVBVehicle::Input_HornReleased);
 }
 
 void AVBVehicle::Input_Throttle(const FInputActionValue& Value)
@@ -473,6 +516,16 @@ void AVBVehicle::Input_Camera(const FInputActionValue& Value)
 	CameraBoom->TargetArmLength = CameraPreset == 0 ? Length * 0.9f + 220.f : Length * 1.4f + 420.f;
 }
 
+void AVBVehicle::Input_HornPressed(const FInputActionValue& Value)
+{
+	HornAudio->Play();
+}
+
+void AVBVehicle::Input_HornReleased(const FInputActionValue& Value)
+{
+	HornAudio->Stop();
+}
+
 // ---------------------------------------------------------------------------------------------
 // Tick: Raeder, Lichter, Grip, Kamera
 // ---------------------------------------------------------------------------------------------
@@ -498,6 +551,7 @@ void AVBVehicle::Tick(float DeltaSeconds)
 	UpdateWheelVisuals();
 	UpdateLights(DeltaSeconds);
 	UpdateCamera(DeltaSeconds);
+	UpdateAudio(DeltaSeconds);
 
 	GripTimer -= DeltaSeconds;
 	if (GripTimer <= 0.f)
@@ -606,3 +660,33 @@ void AVBVehicle::UpdateCamera(float DeltaSeconds)
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void AVBVehicle::UpdateAudio(float DeltaSeconds)
+{
+	if (!Driver)
+	{
+		if (IndicatorAudio->IsPlaying())
+		{
+			IndicatorAudio->Stop();
+		}
+		return;
+	}
+	// Motor: Schleife bei 2000 U/min aufgenommen -> Tonhoehe = Drehzahl / 2000
+	const float Rpm = FMath::Max(GetEngineRPM(), 800.f);
+	EngineAudio->SetPitchMultiplier(FMath::Clamp(Rpm / 2000.f, 0.4f, 3.8f));
+	EngineAudio->SetVolumeMultiplier(0.35f + 0.65f * ThrottleInput);
+
+	const float Speed = FMath::Abs(GetSpeedKmh());
+	TireAudio->SetVolumeMultiplier(FMath::Clamp(Speed / 100.f, 0.f, 1.f) * 0.8f + 0.001f);
+	TireAudio->SetPitchMultiplier(0.8f + FMath::Clamp(Speed / 150.f, 0.f, 1.f) * 0.6f);
+
+	const bool bBlinking = IndicatorSide != 0;
+	if (bBlinking && !IndicatorAudio->IsPlaying())
+	{
+		IndicatorAudio->Play();
+	}
+	else if (!bBlinking && IndicatorAudio->IsPlaying())
+	{
+		IndicatorAudio->Stop();
+	}
+}

@@ -52,7 +52,8 @@ In der Menüleiste oben gibt es jetzt **„Veyra Bay“**:
 | **1. Projekt einrichten** | Ordnerstruktur, Master-Material mit Nässe/Pfützen, globale Wetter-Parameter, Import der Blender-Assets, Spielfigur, Testkarte `L_VB_Dev` mit Straße, Gebäuden, Laternen, Kalibrierkugeln und Testtür |
 | 2. Assets importieren | Importiert neue Blender-Exporte aus `SourceAssets/Export` (Nanite, Kollision, Materialien automatisch) |
 | 3. Assets validieren | Prüft Namen, Ordner, Texturen, Nanite, LODs, Kollision → CSV-Bericht |
-| Dev-Karte öffnen | Lädt `L_VB_Dev` |
+| **4. Stadt bauen** | Baut die ganze Stadt (12 Bezirke) als World-Partition-Karte `L_VB_City` mit Verkehr und Passanten |
+| Stadt öffnen / Dev-Karte öffnen | Lädt `L_VB_City` bzw. `L_VB_Dev` |
 
 Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann mit Raytracing 10–30 Minuten dauern (einmalig).
 
@@ -66,7 +67,7 @@ Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann
 | Strg / Steuerkreuz ↓ | Gehen an/aus |
 | Leertaste / A | Springen |
 | E / X | Interagieren (Tür, **Auto einsteigen**) |
-| P / Esc | Pause (im Editor beendet Esc die Vorschau – dort P nutzen) |
+| P / Esc | Menü / Pause (im Editor beendet Esc die Vorschau – dort P nutzen) |
 
 **Im Auto:**
 
@@ -79,6 +80,7 @@ Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann
 | L / Steuerkreuz ↑ | Licht: Auto → An → Aus |
 | C / R3 | Kamera nah / fern |
 | R / Steuerkreuz → | Auto aufrichten |
+| H / LB | Hupe |
 
 **Entwickler-Tasten** (nicht im fertigen Spiel):
 
@@ -92,7 +94,7 @@ Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann
 | F9 | Grafikmodus QUALITY ↔ PERFORMANCE |
 
 **Konsole** (Taste `^`):
-`vb.Time 21.5` · `vb.TimeScale 60` · `vb.TimePause` · `vb.Weather HeavyRain 10` · `vb.DynamicWeather 0` · `vb.GraphicsMode Performance`
+`vb.Time 21.5` · `vb.TimeScale 60` · `vb.TimePause` · `vb.Weather HeavyRain 10` · `vb.DynamicWeather 0` · `vb.GraphicsMode Performance` · `vb.Benchmark 60 all` · `stat VeyraBay` · `vb.Mission 1` · `vb.MissionReset` · `vb.Event musik|panne|feuerwerk`
 
 ## 7. Was du jetzt sehen solltest (Phase-1-Abnahme)
 
@@ -149,6 +151,33 @@ Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann
 - [ ] F5 → Storm: Blitze erhellen Himmel und Wolken von innen
 - [ ] Klare Nacht (F7 bis 23 Uhr, Clear): Sternenhimmel mit Milchstraße, Sterne wandern langsam; Wolken verdecken sie
 
+### 7g. Phase-7-Abnahme (ganze Stadt)
+
+- [ ] **Veyra Bay → 4. Stadt bauen** (dauert je nach PC 5–20 Minuten; ~10 900 Gebäude, ~2 650 Straßen)
+- [ ] Danach einmal **Build → Build HLODs** (Fernsicht), dann **Play**: Start auf der Promenade der Altstadt
+- [ ] Mit dem Auto die Uferstraße entlang: Hafen mit Lagerhallen (Westen), Strandviertel mit Hotels, Marina (Osten)
+- [ ] Nach Norden: Mercato (dichte Läden), Bayfront-Hochhäuser, Universität mit Parks, Nordstadt, Weststadt mit Einfamilienhäusern
+- [ ] Villen am Monte Veyra (Nordosten) stehen am Hang, nichts schwebt
+- [ ] Verkehr und Passanten gibt es überall, wo du hinfährst; Ampeln laufen synchron
+- [ ] Streaming: beim Fahren keine Löcher im Boden; F2 zeigt stabile Frame-Zeiten
+
+### 7h. Phase-8-Abnahme (Leistung)
+
+- [ ] In `L_VB_City` im Spiel die Konsole öffnen (`^`) und `vb.Benchmark 60 all` eingeben: die Kamera fliegt zweimal durch die Stadt
+- [ ] Ergebnis steht danach oben im Bild und in `Saved/Benchmarks/*.txt` (fps, 1 % low, Game/Render/GPU ms) – **bitte schick mir die beiden .txt-Dateien**
+- [ ] `stat VeyraBay`: Verkehr und Passanten brauchen zusammen deutlich unter 1,5 ms
+- [ ] Ziel auf RTX 4090: QUALITY ≥ 60 fps in 1440p mit DLSS/TSR, PERFORMANCE ≥ 90 fps
+
+### 7i. Phase-9-Abnahme (Story, Klang, Menüs, Ereignisse)
+
+- [ ] `L_VB_City` starten: Startbildschirm „VEYRA BAY“ → **Spielen**; **P** öffnet das Pausenmenü (Grafik, Wetter, Lautstärke, Mission neu starten, Beenden)
+- [ ] Mission 1 „Heimkehr“ beginnt von selbst: Dialog oben/unten, Lichtsäule mit Entfernung, zum Auto gehen, zum Kontor im Hafen fahren
+- [ ] Mission 2 „Lieferrunde“ (blauer Marker am Kontor): drei Läden im Mercato mit Zeitlimit
+- [ ] Mission 3 „Sturmflut“: Unwetter zieht auf, in der Marina drei Leinen zu Fuß sichern
+- [ ] Klang: Meer an der Promenade, Stadtrauschen, Vögel am Tag, Grillen nachts, Regen/Wind je nach Wetter, Donner nach Blitzen, Motor mit Drehzahl, Reifen, Blinker, Hupe, Autotüren, Schritte
+- [ ] Ereignisse (oder per Konsole `vb.Event …`): Pannenauto mit Warnblinker (Stau dahinter), Straßenmusiker mit Zuhörern, nachts Feuerwerk über der Bucht
+- [ ] Bezirke haben eine eigene, dezente Farbstimmung (Altstadt warm, Hafen kühl, Mercato bunt)
+
 Bitte schick mir **Screenshots** (Tag, Nacht, Regen) und bei Problemen den **Output Log** (Fenster → Output Log).
 
 > **Ehrlicher Hinweis:** Alle Inhalte sind selbst erzeugt (Blender, prozedural) und in Blender gerendert geprüft. In Unreal wurde bisher nichts kompiliert oder getestet – das kann nur auf deinem PC passieren. Rechne beim ersten Kompilieren mit einzelnen Fehlern, die ich dann behebe.
@@ -174,6 +203,10 @@ blender -b --factory-startup --python Tools/Blender/assets/vb_asset_vegetation.p
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_vehicles.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_Vehicles.blend
 blender -b --factory-startup --python Tools/Blender/surfaces/vb_sky_textures.py -- --out SourceAssets/Export
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_weather.py -- --out SourceAssets/Export
+blender -b --factory-startup --python Tools/Blender/assets/vb_asset_cityterrain.py -- --out SourceAssets/Export
+blender -b --factory-startup --python Tools/Audio/vb_audio.py -- --out SourceAssets/Export
+# Vorschau eines Stadtausschnitts (altstadt | bayfront | marina | hafen):
+blender -b --factory-startup --python Tools/Blender/assets/vb_preview_city.py -- --out city.png --view altstadt --textures SourceAssets/Export
 # Vorschau des Stadtblocks (gleiche Logik wie in Unreal):
 blender -b --factory-startup --python Tools/Blender/assets/vb_preview_block.py -- --out block.png --view street --textures SourceAssets/Export
 blender -b --factory-startup --python Tools/Blender/assets/vb_preview_district.py -- --out promenade.png --textures SourceAssets/Export

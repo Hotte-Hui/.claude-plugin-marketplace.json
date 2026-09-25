@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Curves/CurveFloat.h"
 #include "GameFramework/Actor.h"
+#include "VBTrafficLight.h"
 #include "VBCrowdManager.generated.h"
 
 class AVBPedestrian;
@@ -12,21 +13,28 @@ class UAnimInstance;
 class USkeletalMesh;
 
 /** Knoten des Gehweg-Graphen (Kreuzungsecken, Strassenenden). */
+USTRUCT()
 struct FVBWalkNode
 {
-	FVector Location;
-	TArray<int32> Edges;
+	GENERATED_BODY()
+
+	UPROPERTY() FVector Location = FVector::ZeroVector;
+	UPROPERTY() TArray<int32> Edges;
 };
 
 /** Gehweg-Abschnitt oder Zebrastreifen. */
+USTRUCT()
 struct FVBWalkEdge
 {
-	int32 A = INDEX_NONE;
-	int32 B = INDEX_NONE;
-	bool bCrossing = false;
+	GENERATED_BODY()
+
+	UPROPERTY() int32 A = INDEX_NONE;
+	UPROPERTY() int32 B = INDEX_NONE;
+	UPROPERTY() bool bCrossing = false;
 	/** Ampel fuer den Autoverkehr, der diesen Uebergang kreuzt (Fussgaenger gehen bei deren Rot). */
-	TWeakObjectPtr<AVBTrafficLight> Signal;
-	float Length = 0.f;
+	UPROPERTY() bool bHasSignal = false;
+	UPROPERTY() FVBSignalTiming Signal;
+	UPROPERTY() float Length = 0.f;
 
 	int32 Other(int32 Node) const { return Node == A ? B : A; }
 };
@@ -59,6 +67,16 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** Stehenden Passanten erzeugen (fuer Ereignisse: Zuhoerer, Musiker). Wird nicht vom Manager bewegt. */
+	AVBPedestrian* SpawnStandingPedestrian(const FVector& Location, const FVector& FaceTowards);
+
+	/** Zufaelliger Punkt auf einem Gehweg im Ring [MinDistance, MaxDistance] um Center (cm); false wenn keiner. */
+	bool FindSidewalkPoint(const FVector& Center, float MinDistance, float MaxDistance, FVector& OutPoint, FVector& OutStreetDirection);
+
+	/** Gehweg-Graph aus den Strassen der Karte berechnen und speichern (unabhaengig vom Streaming). */
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Crowd")
+	void BakeNetwork();
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Crowd")
 	bool bEnableCrowd = true;
 
@@ -76,6 +94,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Crowd", meta = (ClampMin = "0"))
 	int32 MaxPedestrians = 70;
+
+	/** Passanten nur in diesem Umkreis um den Spieler (cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Crowd", meta = (ClampMin = "3000.0"))
+	float SimulationRadius = 16000.f;
 
 	/** Dichte ueber den Tag (x = Stunde, y = 0..1). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Crowd")
@@ -98,10 +120,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Crowd")
 	int32 Seed = 99;
 
+	// --- Gebackene Daten ------------------------------------------------------------------
+	UPROPERTY(VisibleAnywhere, Category = "Baked")
+	TArray<FVBWalkNode> Nodes;
+
+	UPROPERTY(VisibleAnywhere, Category = "Baked")
+	TArray<FVBWalkEdge> Edges;
+
+	UPROPERTY(VisibleAnywhere, Category = "Baked")
+	float TotalSidewalk = 0.f;
+
 private:
 	void BuildGraph();
+	void UpdateNearEdges();
 	int32 AddNode(const FVector& Location, float MergeDistance);
-	void AddEdge(int32 A, int32 B, bool bCrossing, AVBTrafficLight* Signal);
+	void AddEdge(int32 A, int32 B, bool bCrossing, const AVBTrafficLight* Signal);
 	void LoadAssets();
 	void UpdateDensity(float DeltaSeconds);
 	bool TrySpawn(bool bAvoidPlayer);
@@ -113,10 +146,12 @@ private:
 	float DistanceToPlayer(const FVector& Location, bool* bOutInView = nullptr) const;
 	void DrawDebug() const;
 
-	TArray<FVBWalkNode> Nodes;
-	TArray<FVBWalkEdge> Edges;
 	TArray<FVBWalker> Walkers;
-	float TotalSidewalk = 0.f;
+	TArray<int32> NearEdges;
+	float NearSidewalk = 0.f;
+	float NearTimer = 0.f;
+	FVector PlayerLocation = FVector::ZeroVector;
+	TMap<FIntPoint, TArray<int32>> NodeGrid;    // nur waehrend des Aufbaus
 	float SpawnTimer = 0.f;
 	FRandomStream Random;
 

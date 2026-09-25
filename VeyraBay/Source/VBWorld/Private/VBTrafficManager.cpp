@@ -1,6 +1,7 @@
 #include "VBTrafficManager.h"
 
 #include "VBLog.h"
+#include "VBStats.h"
 #include "VBStreetBuilder.h"
 #include "VBTimeOfDaySubsystem.h"
 #include "VBTrafficLight.h"
@@ -10,6 +11,10 @@
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+
+DECLARE_CYCLE_STAT(TEXT("Verkehr (Tick)"), STAT_VBTraffic, STATGROUP_VeyraBay);
+DECLARE_DWORD_COUNTER_STAT(TEXT("Verkehr: Fahrzeuge"), STAT_VBTrafficVehicles, STATGROUP_VeyraBay);
+DECLARE_DWORD_COUNTER_STAT(TEXT("Verkehr: geparkt"), STAT_VBTrafficParked, STATGROUP_VeyraBay);
 
 namespace VBTraffic
 {
@@ -26,6 +31,11 @@ namespace VBTraffic
 	static FVector RightOf(const FVector& Dir)
 	{
 		return FVector(-Dir.Y, Dir.X, 0.f);
+	}
+
+	static FIntPoint CellOf(const FVector& Point, float CellSize)
+	{
+		return FIntPoint(FMath::FloorToInt(Point.X / CellSize), FMath::FloorToInt(Point.Y / CellSize));
 	}
 }
 
@@ -61,7 +71,7 @@ void FVBLane::Build()
 
 float FVBLane::ParamAtDistance(float S) const
 {
-	if (S <= 0.f)
+	if (S <= 0.f || ArcTable.Num() < 2)
 	{
 		return 0.f;
 	}
@@ -88,8 +98,12 @@ AVBTrafficManager::AVBTrafficManager()
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickGroup = TG_PrePhysics;
 
-	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
-	RootComponent = Root;
+#if WITH_EDITORONLY_DATA
+	bIsSpatiallyLoaded = false;     // verwaltet die ganze Stadt
+#endif
+
+	USceneComponent* SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+	RootComponent = SceneRoot;
 
 	// Typische Verteilung: Grau/Silber, Schwarz, Weiss dominieren, wenige Farben
 	PaintPalette = {
@@ -108,41 +122,78 @@ AVBTrafficManager::AVBTrafficManager()
 	}
 }
 
+void AVBTrafficManager::BakeNetwork()
+{
+	TArray<FVBLane> NewLanes;
+	TArray<FVBParkingSlot> NewSlots;
+	float NewLength = 0.f;
+	BuildGraph(NewLanes, NewSlots, NewLength);
+	Modify();
+	Lanes = MoveTemp(NewLanes);
+	ParkingSlots = MoveTemp(NewSlots);
+	TotalLaneLength = NewLength;
+}
+
 void AVBTrafficManager::BeginPlay()
 {
 	Super::BeginPlay();
 	Random.Initialize(Seed);
 
-	BuildGraph();
-	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	if (Lanes.Num() == 0)
 	{
-		if (It->ActorHasTag(TEXT("VB_Vehicle")))
+		// Nicht gebacken (kleine Testkarte): aus den geladenen Strassen erzeugen
+		BuildGraph(Lanes, ParkingSlots, TotalLaneLength);
+	}
+	for (FVBLane& Lane : Lanes)
+	{
+		if (Lane.ArcTable.Num() < 2)
 		{
-			ObstacleActors.Add(*It);
+			Lane.Build();
 		}
 	}
+	AgentsOnLane.SetNum(Lanes.Num());
+	JunctionIncoming.Reset();
+	for (int32 Index = 0; Index < Lanes.Num(); ++Index)
+	{
+		const FVBLane& Lane = Lanes[Index];
+		if (!Lane.bConnector && Lane.Junction != INDEX_NONE)
+		{
+			if (JunctionIncoming.Num() <= Lane.Junction)
+			{
+				JunctionIncoming.SetNum(Lane.Junction + 1);
+			}
+			JunctionIncoming[Lane.Junction].Add(Index);
+		}
+	}
+
+	RefreshObstacleActors();
+	FVector Direction;
+	GetPlayerView(PlayerLocation, Direction);
+	UpdateNearLanes();
 	if (bSpawnParkedCars)
 	{
-		SpawnParkedCars();
+		UpdateParkedCars();
 	}
 	if (bEnableTraffic && VehicleTypes.Num() > 0)
 	{
-		// Startbelegung: halbe Zieldichte sofort, Rest kommt ausserhalb der Sicht dazu
 		UpdateDensity(0.f);
 	}
 }
 
-void AVBTrafficManager::BuildGraph()
+void AVBTrafficManager::BuildGraph(TArray<FVBLane>& OutLanes, TArray<FVBParkingSlot>& OutSlots, float& OutLength)
 {
-	Lanes.Reset();
+	OutLanes.Reset();
+	OutSlots.Reset();
+	OutLength = 0.f;
+	FRandomStream Stream(Seed);
+
 	TArray<AVBStreetBuilder*> Streets;
 	for (TActorIterator<AVBStreetBuilder> It(GetWorld()); It; ++It)
 	{
 		Streets.Add(*It);
 	}
 
-	// --- Strassenspuren: vorwaerts (+X) rechts, rueckwaerts links ---------------------------
-	TotalLaneLength = 0.f;
+	// --- Strassenspuren: vorwaerts (+X) rechts, rueckwaerts links; Parkplaetze --------------------
 	for (int32 StreetIndex = 0; StreetIndex < Streets.Num(); ++StreetIndex)
 	{
 		const AVBStreetBuilder* Street = Streets[StreetIndex];
@@ -161,239 +212,248 @@ void AVBTrafficManager::BuildGraph()
 			Lane.Street = StreetIndex;
 			Lane.SpeedLimit = SpeedLimitKmh / 3.6f * 100.f;
 			Lane.Build();
-			TotalLaneLength += Lane.Length;
-			Lanes.Add(MoveTemp(Lane));
+			OutLength += Lane.Length;
+			OutLanes.Add(MoveTemp(Lane));
+		}
+
+		// Parkplaetze beidseitig, 15 m Abstand zu den Strassenenden
+		for (int32 Side = -1; Side <= 1; Side += 2)
+		{
+			float X = 1500.f + Stream.FRandRange(0.f, 300.f);
+			while (X < Length - 1500.f)
+			{
+				const int32 TypeIndex = PickType(true, Stream);
+				const float Slot = VehicleTypes.IsValidIndex(TypeIndex) ? VehicleTypes[TypeIndex].Length + 120.f : 600.f;
+				if (TypeIndex != INDEX_NONE && Stream.FRand() < ParkingOccupancy)
+				{
+					const float Y = Side * ParkingOffset + Stream.FRandRange(-10.f, 10.f);
+					FVBParkingSlot Parking;
+					Parking.Location = Transform.TransformPosition(FVector(X + Slot * 0.5f, Y, Street->GetRoadSurfaceHeight(Y)));
+					// In Fahrtrichtung der jeweiligen Seite (Rechtsverkehr)
+					Parking.Yaw = Transform.Rotator().Yaw + (Side > 0 ? 0.f : 180.f) + Stream.FRandRange(-1.5f, 1.5f);
+					Parking.Type = TypeIndex;
+					Parking.Paint = (VehicleTypes[TypeIndex].bFixedPaint || PaintPalette.Num() == 0) ? INDEX_NONE
+						: Stream.RandRange(0, PaintPalette.Num() - 1);
+					OutSlots.Add(Parking);
+				}
+				X += Slot + Stream.FRandRange(20.f, 180.f);
+			}
 		}
 	}
-	const int32 StreetLaneCount = Lanes.Num();
+	const int32 StreetLaneCount = OutLanes.Num();
 
-	// --- Kreuzungen: Spurenden/-anfaenge, die nah beieinander liegen ----------------------------
+	// --- Kreuzungen: Spurenden/-anfaenge, die nah beieinander liegen (Raster fuer schnelle Suche) -----
+	const float CellSize = VBTraffic::JunctionCluster;
 	TArray<FVector> JunctionCenters;
+	TMap<FIntPoint, TArray<int32>> JunctionGrid;
+	auto FindOrAddJunction = [&](const FVector& Center)
+	{
+		const FIntPoint Cell = VBTraffic::CellOf(Center, CellSize);
+		for (int32 DX = -1; DX <= 1; ++DX)
+		{
+			for (int32 DY = -1; DY <= 1; ++DY)
+			{
+				if (const TArray<int32>* Bucket = JunctionGrid.Find(Cell + FIntPoint(DX, DY)))
+				{
+					for (int32 Index : *Bucket)
+					{
+						if (FVector::Dist2D(JunctionCenters[Index], Center) < CellSize * 0.5f)
+						{
+							return Index;
+						}
+					}
+				}
+			}
+		}
+		const int32 NewIndex = JunctionCenters.Add(Center);
+		JunctionGrid.FindOrAdd(Cell).Add(NewIndex);
+		return NewIndex;
+	};
+
 	TArray<int32> StartJunction;
 	StartJunction.Init(INDEX_NONE, StreetLaneCount);
-	auto FindJunction = [&JunctionCenters](const FVector& Point)
-	{
-		for (int32 Index = 0; Index < JunctionCenters.Num(); ++Index)
-		{
-			if (FVector::Dist2D(JunctionCenters[Index], Point) < VBTraffic::JunctionCluster * 0.5f)
-			{
-				return Index;
-			}
-		}
-		return static_cast<int32>(INDEX_NONE);
-	};
 	for (int32 Index = 0; Index < StreetLaneCount; ++Index)
 	{
-		// Kreuzungsmitte grob: vom Spurende um die Haltelinien-Distanz weiter, zurueck zur Strassenmitte
-		FVBLane& Lane = Lanes[Index];
+		FVBLane& Lane = OutLanes[Index];
 		const FVector Dir = (Lane.P3 - Lane.P0).GetSafeNormal2D();
-		const FVector EndCenter = Lane.P3 + Dir * StopLineOffset - VBTraffic::RightOf(Dir) * LaneOffset;
-		const FVector StartCenter = Lane.P0 - Dir * StopLineOffset - VBTraffic::RightOf(Dir) * LaneOffset;
-		for (int32 Pass = 0; Pass < 2; ++Pass)
-		{
-			const FVector& Center = Pass == 0 ? EndCenter : StartCenter;
-			int32 Junction = FindJunction(Center);
-			if (Junction == INDEX_NONE)
-			{
-				Junction = JunctionCenters.Add(Center);
-			}
-			(Pass == 0 ? Lane.Junction : StartJunction[Index]) = Junction;
-		}
+		Lane.Junction = FindOrAddJunction(Lane.P3 + Dir * StopLineOffset - VBTraffic::RightOf(Dir) * LaneOffset);
+		StartJunction[Index] = FindOrAddJunction(Lane.P0 - Dir * StopLineOffset - VBTraffic::RightOf(Dir) * LaneOffset);
 	}
 
-	// --- Abbiegekurven ---------------------------------------------------------------------------
-	for (int32 From = 0; From < StreetLaneCount; ++From)
+	TArray<TArray<int32>> Incoming, Outgoing;
+	Incoming.SetNum(JunctionCenters.Num());
+	Outgoing.SetNum(JunctionCenters.Num());
+	for (int32 Index = 0; Index < StreetLaneCount; ++Index)
 	{
-		for (int32 To = 0; To < StreetLaneCount; ++To)
-		{
-			const FVBLane& A = Lanes[From];
-			const FVBLane& B = Lanes[To];
-			if (A.Street == B.Street || StartJunction[To] != A.Junction || FVector::Dist2D(A.P3, B.P0) > VBTraffic::JunctionCluster)
-			{
-				continue;
-			}
-			const FVector DA = (A.P3 - A.P0).GetSafeNormal2D();
-			const FVector DB = (B.P3 - B.P0).GetSafeNormal2D();
-			const float Dot = FVector::DotProduct(DA, DB);
-			if (Dot < -0.7f)
-			{
-				continue;   // keine Wendemanoever
-			}
-			const float Cross = DA.X * DB.Y - DA.Y * DB.X;
-
-			FVBLane Curve;
-			Curve.bConnector = true;
-			Curve.Source = From;
-			Curve.Junction = A.Junction;
-			Curve.P0 = A.P3;
-			Curve.P3 = B.P0;
-			if (Dot > 0.7f)
-			{
-				Curve.Turn = 0;
-				Curve.P1 = FMath::Lerp(Curve.P0, Curve.P3, 1.f / 3.f);
-				Curve.P2 = FMath::Lerp(Curve.P0, Curve.P3, 2.f / 3.f);
-				Curve.SpeedLimit = 1100.f;
-			}
-			else
-			{
-				Curve.Turn = Cross > 0.f ? 1 : -1;
-				const FVector Delta = Curve.P3 - Curve.P0;
-				const float Along = FMath::Max(FVector::DotProduct(Delta, DA), 100.f);
-				const float Across = FMath::Max(FVector::DotProduct(Delta, DB), 100.f);
-				Curve.P1 = Curve.P0 + DA * Along * 0.55f;
-				Curve.P2 = Curve.P3 - DB * Across * 0.55f;
-				Curve.SpeedLimit = Curve.Turn > 0 ? 560.f : 720.f;
-			}
-			Curve.Next.Add(To);
-			Curve.Build();
-			const int32 CurveIndex = Lanes.Add(MoveTemp(Curve));
-			Lanes[From].Next.Add(CurveIndex);
-		}
+		Incoming[OutLanes[Index].Junction].Add(Index);
+		Outgoing[StartJunction[Index]].Add(Index);
 	}
 
-	// --- Konflikte, Gegenverkehr, Ampeln ---------------------------------------------------------
-	TArray<TArray<FVector>> Samples;
-	Samples.SetNum(Lanes.Num());
-	for (int32 Index = StreetLaneCount; Index < Lanes.Num(); ++Index)
+	// --- Abbiegekurven je Kreuzung -----------------------------------------------------------------
+	TArray<TArray<int32>> JunctionCurves;
+	JunctionCurves.SetNum(JunctionCenters.Num());
+	for (int32 Junction = 0; Junction < JunctionCenters.Num(); ++Junction)
 	{
-		for (int32 Step = 0; Step <= 16; ++Step)
+		for (int32 From : Incoming[Junction])
 		{
-			Samples[Index].Add(Lanes[Index].Eval(Step / 16.f));
-		}
-	}
-	for (int32 I = StreetLaneCount; I < Lanes.Num(); ++I)
-	{
-		FVBLane& Curve = Lanes[I];
-		for (int32 J = StreetLaneCount; J < Lanes.Num(); ++J)
-		{
-			const FVBLane& Other = Lanes[J];
-			if (I == J || Other.Junction != Curve.Junction || Other.Source == Curve.Source)
+			for (int32 To : Outgoing[Junction])
 			{
-				continue;
-			}
-			bool bConflict = false;
-			for (const FVector& PA : Samples[I])
-			{
-				for (const FVector& PB : Samples[J])
+				const FVBLane& A = OutLanes[From];
+				const FVBLane& B = OutLanes[To];
+				if (A.Street == B.Street || FVector::Dist2D(A.P3, B.P0) > VBTraffic::JunctionCluster)
 				{
-					if (FVector::DistSquared2D(PA, PB) < FMath::Square(220.f))
+					continue;
+				}
+				const FVector DA = (A.P3 - A.P0).GetSafeNormal2D();
+				const FVector DB = (B.P3 - B.P0).GetSafeNormal2D();
+				const float Dot = FVector::DotProduct(DA, DB);
+				if (Dot < -0.7f)
+				{
+					continue;   // keine Wendemanoever
+				}
+				const float Cross = DA.X * DB.Y - DA.Y * DB.X;
+
+				FVBLane Curve;
+				Curve.bConnector = true;
+				Curve.Source = From;
+				Curve.Junction = Junction;
+				Curve.P0 = A.P3;
+				Curve.P3 = B.P0;
+				if (Dot > 0.7f)
+				{
+					Curve.Turn = 0;
+					Curve.P1 = FMath::Lerp(Curve.P0, Curve.P3, 1.f / 3.f);
+					Curve.P2 = FMath::Lerp(Curve.P0, Curve.P3, 2.f / 3.f);
+					Curve.SpeedLimit = 1100.f;
+				}
+				else
+				{
+					Curve.Turn = Cross > 0.f ? 1 : -1;
+					const FVector Delta = Curve.P3 - Curve.P0;
+					const float Along = FMath::Max(static_cast<float>(FVector::DotProduct(Delta, DA)), 100.f);
+					const float Across = FMath::Max(static_cast<float>(FVector::DotProduct(Delta, DB)), 100.f);
+					Curve.P1 = Curve.P0 + DA * Along * 0.55f;
+					Curve.P2 = Curve.P3 - DB * Across * 0.55f;
+					Curve.SpeedLimit = Curve.Turn > 0 ? 560.f : 720.f;
+				}
+				Curve.Next.Add(To);
+				Curve.Build();
+				const int32 CurveIndex = OutLanes.Add(MoveTemp(Curve));
+				OutLanes[From].Next.Add(CurveIndex);
+				JunctionCurves[Junction].Add(CurveIndex);
+			}
+		}
+	}
+
+	// --- Konflikte und Gegenverkehr (nur innerhalb einer Kreuzung) ---------------------------------------
+	for (int32 Junction = 0; Junction < JunctionCenters.Num(); ++Junction)
+	{
+		const TArray<int32>& Curves = JunctionCurves[Junction];
+		TArray<TArray<FVector>> Samples;
+		Samples.SetNum(Curves.Num());
+		for (int32 C = 0; C < Curves.Num(); ++C)
+		{
+			for (int32 Step = 0; Step <= 16; ++Step)
+			{
+				Samples[C].Add(OutLanes[Curves[C]].Eval(Step / 16.f));
+			}
+		}
+		for (int32 C = 0; C < Curves.Num(); ++C)
+		{
+			FVBLane& Curve = OutLanes[Curves[C]];
+			for (int32 D = 0; D < Curves.Num(); ++D)
+			{
+				if (C == D || OutLanes[Curves[D]].Source == Curve.Source)
+				{
+					continue;
+				}
+				bool bConflict = false;
+				for (int32 SA = 0; SA < Samples[C].Num() && !bConflict; ++SA)
+				{
+					for (int32 SB = 0; SB < Samples[D].Num(); ++SB)
 					{
-						bConflict = true;
-						break;
+						if (FVector::DistSquared2D(Samples[C][SA], Samples[D][SB]) < FMath::Square(220.f))
+						{
+							bConflict = true;
+							break;
+						}
 					}
 				}
 				if (bConflict)
 				{
-					break;
+					Curve.Conflicts.Add(Curves[D]);
 				}
 			}
-			if (bConflict)
+			if (Curve.Turn < 0)
 			{
-				Curve.Conflicts.Add(J);
-			}
-		}
-		if (Curve.Turn < 0)
-		{
-			const FVector DA = (Lanes[Curve.Source].P3 - Lanes[Curve.Source].P0).GetSafeNormal2D();
-			for (int32 K = 0; K < StreetLaneCount; ++K)
-			{
-				const FVBLane& Candidate = Lanes[K];
-				if (Candidate.Junction == Curve.Junction && FVector::DotProduct((Candidate.P3 - Candidate.P0).GetSafeNormal2D(), DA) < -0.9f)
+				const FVector DA = (OutLanes[Curve.Source].P3 - OutLanes[Curve.Source].P0).GetSafeNormal2D();
+				for (int32 Candidate : Incoming[Junction])
 				{
-					Curve.Opposing = K;
-					break;
+					const FVBLane& Other = OutLanes[Candidate];
+					if (FVector::DotProduct((Other.P3 - Other.P0).GetSafeNormal2D(), DA) < -0.9f)
+					{
+						Curve.Opposing = Candidate;
+						break;
+					}
 				}
 			}
 		}
 	}
 
-	TArray<AVBTrafficLight*> Signals;
+	// --- Ampeln: Phasenplan der Ampel, die der Zufahrt gegenuebersteht ---------------------------------
+	TMap<FIntPoint, TArray<AVBTrafficLight*>> SignalGrid;
 	for (TActorIterator<AVBTrafficLight> It(GetWorld()); It; ++It)
 	{
-		Signals.Add(*It);
+		SignalGrid.FindOrAdd(VBTraffic::CellOf(It->GetActorLocation(), CellSize)).Add(*It);
 	}
 	int32 SignalCount = 0;
 	for (int32 Index = 0; Index < StreetLaneCount; ++Index)
 	{
-		FVBLane& Lane = Lanes[Index];
+		FVBLane& Lane = OutLanes[Index];
 		if (Lane.Next.Num() == 0)
 		{
 			continue;
 		}
 		const FVector Dir = (Lane.P3 - Lane.P0).GetSafeNormal2D();
+		const FIntPoint Cell = VBTraffic::CellOf(Lane.P3, CellSize);
 		float Best = 1500.f;
-		for (AVBTrafficLight* Signal : Signals)
+		const AVBTrafficLight* BestSignal = nullptr;
+		for (int32 DX = -1; DX <= 1; ++DX)
 		{
-			const float Facing = FVector::DotProduct(Signal->GetActorForwardVector().GetSafeNormal2D(), Dir);
-			const float Distance = FVector::Dist2D(Signal->GetActorLocation(), Lane.P3);
-			if (Facing < -0.8f && Distance < Best)
+			for (int32 DY = -1; DY <= 1; ++DY)
 			{
-				Best = Distance;
-				Lane.Signal = Signal;
-			}
-		}
-		SignalCount += Lane.Signal.IsValid() ? 1 : 0;
-	}
-
-	AgentsOnLane.SetNum(Lanes.Num());
-	UE_LOG(LogVB, Log, TEXT("Verkehr: %d Strassen, %d Spuren, %d Abbiegekurven, %d Kreuzungen, %d Ampel-Zufahrten, %.1f km Spur"),
-		Streets.Num(), StreetLaneCount, Lanes.Num() - StreetLaneCount, JunctionCenters.Num(), SignalCount, TotalLaneLength / 100000.f);
-}
-
-// ---------------------------------------------------------------------------------------------
-// Parkende Autos
-// ---------------------------------------------------------------------------------------------
-void AVBTrafficManager::SpawnParkedCars()
-{
-	if (VehicleTypes.Num() == 0)
-	{
-		return;
-	}
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	Params.Owner = this;
-
-	for (TActorIterator<AVBStreetBuilder> It(GetWorld()); It; ++It)
-	{
-		const AVBStreetBuilder* Street = *It;
-		const FTransform Transform = Street->GetActorTransform();
-		for (int32 Side = -1; Side <= 1; Side += 2)
-		{
-			float X = 1500.f + Random.FRandRange(0.f, 300.f);
-			while (X < Street->Length - 1500.f)
-			{
-				const int32 TypeIndex = PickType(true);
-				const float Slot = VehicleTypes.IsValidIndex(TypeIndex) ? VehicleTypes[TypeIndex].Length + 120.f : 600.f;
-				const float Y = Side * ParkingOffset + Random.FRandRange(-10.f, 10.f);
-				const FVector Location = Transform.TransformPosition(FVector(X + Slot * 0.5f, Y, Street->GetRoadSurfaceHeight(Y)));
-				// Platz neben fahrbaren Autos (vom Setup-Skript geparkt) freilassen
-				const bool bBlocked = ObstacleActors.ContainsByPredicate([&Location](const TWeakObjectPtr<AActor>& Actor)
+				if (const TArray<AVBTrafficLight*>* Bucket = SignalGrid.Find(Cell + FIntPoint(DX, DY)))
 				{
-					return Actor.IsValid() && FVector::Dist2D(Actor->GetActorLocation(), Location) < 700.f;
-				});
-				if (TypeIndex != INDEX_NONE && !bBlocked && Random.FRand() < ParkingOccupancy)
-				{
-					const FVBTrafficVehicleType& Type = VehicleTypes[TypeIndex];
-					// Geparkt in Fahrtrichtung der jeweiligen Seite (Rechtsverkehr)
-					const float Yaw = Transform.Rotator().Yaw + (Side > 0 ? 0.f : 180.f) + Random.FRandRange(-1.5f, 1.5f);
-					if (AVBTrafficVehicle* Car = GetWorld()->SpawnActor<AVBTrafficVehicle>(Location, FRotator(0.f, Yaw, 0.f), Params))
+					for (const AVBTrafficLight* Signal : *Bucket)
 					{
-						Car->Configure(Type, PickPaint(Type));
-						Car->UpdateVisuals(0.f, 0.f, 0.f, false, false, 0);
-						ParkedCars.Add(Car);
-						SpawnedActors.Add(Car);
+						const float Facing = FVector::DotProduct(Signal->GetActorForwardVector().GetSafeNormal2D(), Dir);
+						const float Distance = FVector::Dist2D(Signal->GetActorLocation(), Lane.P3);
+						if (Facing < -0.8f && Distance < Best)
+						{
+							Best = Distance;
+							BestSignal = Signal;
+						}
 					}
 				}
-				X += Slot + Random.FRandRange(20.f, 180.f);
 			}
 		}
+		if (BestSignal)
+		{
+			Lane.bHasSignal = true;
+			Lane.Signal = BestSignal->GetTiming();
+			++SignalCount;
+		}
 	}
+
+	UE_LOG(LogVB, Log, TEXT("Verkehr: %d Strassen, %d Spuren, %d Abbiegekurven, %d Kreuzungen, %d Ampel-Zufahrten, %d Parkplaetze, %.1f km Spur"),
+		Streets.Num(), StreetLaneCount, OutLanes.Num() - StreetLaneCount, JunctionCenters.Num(), SignalCount, OutSlots.Num(),
+		OutLength / 100000.f);
 }
 
 // ---------------------------------------------------------------------------------------------
 // Auswahl
 // ---------------------------------------------------------------------------------------------
-int32 AVBTrafficManager::PickType(bool bParked)
+int32 AVBTrafficManager::PickType(bool bParked, FRandomStream& Stream) const
 {
 	float Total = 0.f;
 	for (const FVBTrafficVehicleType& Type : VehicleTypes)
@@ -404,7 +464,7 @@ int32 AVBTrafficManager::PickType(bool bParked)
 	{
 		return INDEX_NONE;
 	}
-	float Pick = Random.FRand() * Total;
+	float Pick = Stream.FRand() * Total;
 	for (int32 Index = 0; Index < VehicleTypes.Num(); ++Index)
 	{
 		const FVBTrafficVehicleType& Type = VehicleTypes[Index];
@@ -417,13 +477,13 @@ int32 AVBTrafficManager::PickType(bool bParked)
 	return VehicleTypes.Num() - 1;
 }
 
-FLinearColor AVBTrafficManager::PickPaint(const FVBTrafficVehicleType& Type)
+FLinearColor AVBTrafficManager::PaintFor(const FVBTrafficVehicleType& Type, int32 PaintIndex) const
 {
-	if (Type.bFixedPaint || PaintPalette.Num() == 0)
+	if (Type.bFixedPaint || !PaintPalette.IsValidIndex(PaintIndex))
 	{
 		return Type.Paint;
 	}
-	return PaintPalette[Random.RandRange(0, PaintPalette.Num() - 1)];
+	return PaintPalette[PaintIndex];
 }
 
 int32 AVBTrafficManager::PickNext(int32 LaneIndex)
@@ -465,24 +525,117 @@ void AVBTrafficManager::EnsureRoute(FVBTrafficAgent& Agent)
 }
 
 // ---------------------------------------------------------------------------------------------
-// Dichte, Spawnen
+// Spieler, Blase, parkende Autos
 // ---------------------------------------------------------------------------------------------
-float AVBTrafficManager::DistanceToPlayer(const FVector& Location) const
+bool AVBTrafficManager::GetPlayerView(FVector& OutLocation, FVector& OutDirection) const
 {
-	float Best = TNumericLimits<float>::Max();
-	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	const APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
 	{
-		if (const APlayerController* PC = It->Get())
-		{
-			FVector ViewLocation;
-			FRotator ViewRotation;
-			PC->GetPlayerViewPoint(ViewLocation, ViewRotation);
-			Best = FMath::Min(Best, FVector::Dist(ViewLocation, Location));
-		}
+		return false;
 	}
-	return Best;
+	FRotator Rotation;
+	PC->GetPlayerViewPoint(OutLocation, Rotation);
+	OutDirection = Rotation.Vector();
+	return true;
 }
 
+float AVBTrafficManager::DistanceToPlayer(const FVector& Location, bool* bOutInView) const
+{
+	FVector ViewLocation, ViewDirection;
+	if (!GetPlayerView(ViewLocation, ViewDirection))
+	{
+		if (bOutInView)
+		{
+			*bOutInView = false;
+		}
+		return TNumericLimits<float>::Max();
+	}
+	const FVector Delta = Location - ViewLocation;
+	if (bOutInView)
+	{
+		*bOutInView = FVector::DotProduct(Delta.GetSafeNormal(), ViewDirection) > 0.35f;
+	}
+	return Delta.Size();
+}
+
+void AVBTrafficManager::UpdateNearLanes()
+{
+	NearLanes.Reset();
+	NearLaneLength = 0.f;
+	const float RadiusSq = FMath::Square(SimulationRadius);
+	for (int32 Index = 0; Index < Lanes.Num(); ++Index)
+	{
+		const FVBLane& Lane = Lanes[Index];
+		if (Lane.bConnector)
+		{
+			continue;
+		}
+		const FVector Mid = (Lane.P0 + Lane.P3) * 0.5f;
+		if (FVector::DistSquared2D(Mid, PlayerLocation) < RadiusSq)
+		{
+			NearLanes.Add(Index);
+			NearLaneLength += Lane.Length;
+		}
+	}
+}
+
+void AVBTrafficManager::UpdateParkedCars()
+{
+	if (!bSpawnParkedCars || VehicleTypes.Num() == 0)
+	{
+		return;
+	}
+	const float SpawnSq = FMath::Square(ParkedRadius);
+	const float KeepSq = FMath::Square(ParkedRadius + 5000.f);
+
+	// Entfernen, was aus dem Radius gefallen ist
+	for (auto It = ParkedActors.CreateIterator(); It; ++It)
+	{
+		AVBTrafficVehicle* Car = It->Value;
+		if (!IsValid(Car) || FVector::DistSquared2D(Car->GetActorLocation(), PlayerLocation) > KeepSq)
+		{
+			if (IsValid(Car))
+			{
+				Car->Destroy();
+			}
+			It.RemoveCurrent();
+		}
+	}
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Params.Owner = this;
+	for (int32 Index = 0; Index < ParkingSlots.Num(); ++Index)
+	{
+		const FVBParkingSlot& Slot = ParkingSlots[Index];
+		if (!VehicleTypes.IsValidIndex(Slot.Type) || ParkedActors.Contains(Index)
+			|| FVector::DistSquared2D(Slot.Location, PlayerLocation) > SpawnSq)
+		{
+			continue;
+		}
+		// Platz neben fahrbaren Autos (vom Setup-Skript geparkt) freilassen
+		const bool bBlocked = ObstacleActors.ContainsByPredicate([&Slot](const TWeakObjectPtr<AActor>& Actor)
+		{
+			return Actor.IsValid() && FVector::Dist2D(Actor->GetActorLocation(), Slot.Location) < 700.f;
+		});
+		if (bBlocked)
+		{
+			continue;
+		}
+		const FVBTrafficVehicleType& Type = VehicleTypes[Slot.Type];
+		if (AVBTrafficVehicle* Car = GetWorld()->SpawnActor<AVBTrafficVehicle>(Slot.Location, FRotator(0.f, Slot.Yaw, 0.f), Params))
+		{
+			Car->Configure(Type, PaintFor(Type, Slot.Paint));
+			Car->UpdateVisuals(0.f, 0.f, 0.f, false, false, 0);
+			ParkedActors.Add(Index, Car);
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// Dichte, Spawnen
+// ---------------------------------------------------------------------------------------------
 float AVBTrafficManager::WeatherFactor() const
 {
 	const UVBWeatherSubsystem* Weather = GetWorld()->GetSubsystem<UVBWeatherSubsystem>();
@@ -495,7 +648,7 @@ void AVBTrafficManager::UpdateDensity(float DeltaSeconds)
 	const float Hour = Time ? Time->GetTimeOfDay() : 12.f;
 	const float Density = FMath::Clamp(DensityByHour.GetRichCurveConst()->Eval(Hour), 0.f, 1.f);
 	const float Weather = FMath::Lerp(0.8f, 1.f, WeatherFactor());
-	const int32 Target = FMath::Min(MaxVehicles, FMath::RoundToInt(TotalLaneLength / 100000.f * VehiclesPerKm * Density * Weather));
+	const int32 Target = FMath::Min(MaxVehicles, FMath::RoundToInt(NearLaneLength / 100000.f * VehiclesPerKm * Density * Weather));
 
 	if (DeltaSeconds <= 0.f)
 	{
@@ -512,64 +665,51 @@ void AVBTrafficManager::UpdateDensity(float DeltaSeconds)
 	{
 		return;
 	}
-	SpawnTimer = 0.5f;
+	SpawnTimer = 0.25f;
 	if (Agents.Num() < Target)
 	{
 		TrySpawnAgent(true);
 	}
 	else if (Agents.Num() > Target + 2)
 	{
-		// Das am weitesten entfernte Auto entfernen, wenn es weit genug weg ist
-		int32 Farthest = INDEX_NONE;
-		float FarthestDistance = 6000.f;
+		// Ueberzaehlige ausserhalb der Sicht entfernen
 		for (int32 Index = 0; Index < Agents.Num(); ++Index)
 		{
-			const float Distance = DistanceToPlayer(Agents[Index].Actor->GetActorLocation());
-			if (Distance > FarthestDistance)
+			bool bInView = false;
+			const float Distance = DistanceToPlayer(Agents[Index].Actor->GetActorLocation(), &bInView);
+			if (Distance > MinSpawnDistance && !bInView)
 			{
-				FarthestDistance = Distance;
-				Farthest = Index;
+				RemoveAgent(Index);
+				break;
 			}
-		}
-		if (Farthest != INDEX_NONE)
-		{
-			RemoveAgent(Farthest);
 		}
 	}
 }
 
 bool AVBTrafficManager::TrySpawnAgent(bool bAvoidPlayer)
 {
-	if (TotalLaneLength <= 0.f)
+	if (NearLaneLength <= 0.f || NearLanes.Num() == 0)
 	{
 		return false;
 	}
-	const int32 TypeIndex = PickType(false);
+	const int32 TypeIndex = PickType(false, Random);
 	if (TypeIndex == INDEX_NONE)
 	{
 		return false;
 	}
 	const FVBTrafficVehicleType& Type = VehicleTypes[TypeIndex];
 
-	// Strassenspur nach Laenge gewichtet waehlen
-	float Pick = Random.FRand() * TotalLaneLength;
-	int32 LaneIndex = INDEX_NONE;
-	for (int32 Index = 0; Index < Lanes.Num(); ++Index)
+	// Spur in der Blase nach Laenge gewichtet waehlen
+	float Pick = Random.FRand() * NearLaneLength;
+	int32 LaneIndex = NearLanes.Last();
+	for (int32 Candidate : NearLanes)
 	{
-		if (Lanes[Index].bConnector)
-		{
-			continue;
-		}
-		Pick -= Lanes[Index].Length;
+		Pick -= Lanes[Candidate].Length;
 		if (Pick <= 0.f)
 		{
-			LaneIndex = Index;
+			LaneIndex = Candidate;
 			break;
 		}
-	}
-	if (LaneIndex == INDEX_NONE)
-	{
-		return false;
 	}
 	const FVBLane& Lane = Lanes[LaneIndex];
 	if (Lane.Length < Type.Length + 1500.f)
@@ -585,8 +725,10 @@ bool AVBTrafficManager::TrySpawnAgent(bool bAvoidPlayer)
 		}
 	}
 	const FVector Location = Lane.Eval(Lane.ParamAtDistance(S));
-	const float PlayerDistance = DistanceToPlayer(Location);
-	if (PlayerDistance < (bAvoidPlayer ? 5000.f : 1500.f))
+	bool bInView = false;
+	const float PlayerDistance = DistanceToPlayer(Location, &bInView);
+	if (PlayerDistance > SimulationRadius || PlayerDistance < (bAvoidPlayer ? MinSpawnDistance : 2500.f)
+		|| (bAvoidPlayer && bInView && PlayerDistance < SimulationRadius * 0.7f))
 	{
 		return false;
 	}
@@ -600,7 +742,8 @@ bool AVBTrafficManager::TrySpawnAgent(bool bAvoidPlayer)
 	{
 		return false;
 	}
-	Car->Configure(Type, PickPaint(Type));
+	const int32 PaintIndex = PaintPalette.Num() > 0 ? Random.RandRange(0, PaintPalette.Num() - 1) : INDEX_NONE;
+	Car->Configure(Type, PaintFor(Type, PaintIndex));
 	SpawnedActors.Add(Car);
 
 	FVBTrafficAgent Agent;
@@ -631,27 +774,36 @@ void AVBTrafficManager::AddTransientObstacle(const FVector& Location, float Radi
 	TransientObstacles.Add(FVector4(Location.X, Location.Y, Location.Z, Radius));
 }
 
+void AVBTrafficManager::RefreshObstacleActors()
+{
+	// Fahrbare Autos (World Partition laedt sie nach) - Pawns sind wenige, daher billig
+	ObstacleActors.Reset();
+	for (TActorIterator<APawn> It(GetWorld()); It; ++It)
+	{
+		if (It->ActorHasTag(TEXT("VB_Vehicle")))
+		{
+			ObstacleActors.Add(*It);
+		}
+	}
+}
+
 void AVBTrafficManager::UpdateObstacles()
 {
-	// Spieler (zu Fuss: kleiner Radius), fahrbare Autos (Radius ~ halbe Breite; Laenge ueber LonRadius)
+	// Spieler zu Fuss (kleiner Radius), fahrbare Autos (negativer Radius = Fahrzeug, laengs 2.5-fach), Fussgaenger
 	FrameObstacles = MoveTemp(TransientObstacles);
 	TransientObstacles.Reset();
-	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	const APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	const APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+	if (Pawn && !Pawn->ActorHasTag(TEXT("VB_Vehicle")))
 	{
-		const APlayerController* PC = It->Get();
-		const APawn* Pawn = PC ? PC->GetPawn() : nullptr;
-		if (Pawn && !Pawn->ActorHasTag(TEXT("VB_Vehicle")))
-		{
-			const FVector Location = Pawn->GetActorLocation();
-			FrameObstacles.Add(FVector4(Location.X, Location.Y, Location.Z, 45.f));
-		}
+		const FVector Location = Pawn->GetActorLocation();
+		FrameObstacles.Add(FVector4(Location.X, Location.Y, Location.Z, 45.f));
 	}
 	for (const TWeakObjectPtr<AActor>& Actor : ObstacleActors)
 	{
 		if (const AActor* Vehicle = Actor.Get())
 		{
 			const FVector Location = Vehicle->GetActorLocation();
-			// Negativer Radius markiert Fahrzeuge (laengs 2.5-fach)
 			FrameObstacles.Add(FVector4(Location.X, Location.Y, Location.Z, -95.f));
 		}
 	}
@@ -662,8 +814,39 @@ void AVBTrafficManager::UpdateObstacles()
 // ---------------------------------------------------------------------------------------------
 void AVBTrafficManager::Tick(float DeltaSeconds)
 {
+	SCOPE_CYCLE_COUNTER(STAT_VBTraffic);
 	Super::Tick(DeltaSeconds);
-	if (!bEnableTraffic || Lanes.Num() == 0 || VehicleTypes.Num() == 0)
+	SET_DWORD_STAT(STAT_VBTrafficVehicles, Agents.Num());
+	SET_DWORD_STAT(STAT_VBTrafficParked, ParkedActors.Num());
+	if (Lanes.Num() == 0)
+	{
+		return;
+	}
+	FVector ViewDirection;
+	if (!GetPlayerView(PlayerLocation, ViewDirection))
+	{
+		return;
+	}
+
+	NearTimer -= DeltaSeconds;
+	if (NearTimer <= 0.f)
+	{
+		NearTimer = 1.f;
+		UpdateNearLanes();
+	}
+	ParkedTimer -= DeltaSeconds;
+	if (ParkedTimer <= 0.f)
+	{
+		ParkedTimer = 1.f;
+		UpdateParkedCars();
+	}
+	ObstacleRefreshTimer -= DeltaSeconds;
+	if (ObstacleRefreshTimer <= 0.f)
+	{
+		ObstacleRefreshTimer = 2.f;
+		RefreshObstacleActors();
+	}
+	if (!bEnableTraffic || VehicleTypes.Num() == 0)
 	{
 		return;
 	}
@@ -681,6 +864,7 @@ void AVBTrafficManager::Tick(float DeltaSeconds)
 
 	// Entfernen erst nach dem Durchlauf (AgentsOnLane haelt Indizes)
 	TArray<int32> ToRemove;
+	const float DespawnDistance = SimulationRadius + 5000.f;
 	for (int32 Index = 0; Index < Agents.Num(); ++Index)
 	{
 		FVBTrafficAgent& Agent = Agents[Index];
@@ -690,9 +874,11 @@ void AVBTrafficManager::Tick(float DeltaSeconds)
 			continue;
 		}
 		StepAgent(Agent, Index, Step);
-		// Sackgasse oder lange festgefahren (ausser Sicht): entfernen, Dichte fuellt nach
+		// Sackgasse, ausserhalb der Blase oder lange festgefahren (ausser Sicht)
+		bool bInView = false;
+		const float Distance = DistanceToPlayer(Agent.Actor->GetActorLocation(), &bInView);
 		const bool bDeadEnd = Agent.Route.Num() == 0 && Agent.S > Lanes[Agent.Lane].Length - VehicleTypes[Agent.Type].Length;
-		if (bDeadEnd || (Agent.WaitTime > 60.f && DistanceToPlayer(Agent.Actor->GetActorLocation()) > 4000.f))
+		if (bDeadEnd || Distance > DespawnDistance || (Agent.WaitTime > 60.f && !bInView && Distance > 4000.f))
 		{
 			ToRemove.Add(Index);
 		}
@@ -818,9 +1004,9 @@ bool AVBTrafficManager::MayEnterJunction(const FVBTrafficAgent& Agent, int32 Age
 	const FVBLane& Lane = Lanes[Agent.Lane];
 	const FVBLane& Curve = Lanes[Agent.Route[0]];
 
-	if (const AVBTrafficLight* Signal = Lane.Signal.Get())
+	if (Lane.bHasSignal)
 	{
-		switch (Signal->GetState())
+		switch (Lane.Signal.StateAt(GetWorld()->GetTimeSeconds()))
 		{
 		case EVBSignalState::Green:
 			break;
@@ -875,22 +1061,21 @@ bool AVBTrafficManager::MayEnterJunction(const FVBTrafficAgent& Agent, int32 Age
 	}
 
 	// Kreuzung ohne Ampel: wer der Haltelinie naeher ist, faehrt zuerst
-	if (!Lane.Signal.IsValid())
+	if (!Lane.bHasSignal && JunctionIncoming.IsValidIndex(Lane.Junction))
 	{
-		const float MyDistance = DistanceToStop;
-		for (int32 Index = 0; Index < Lanes.Num(); ++Index)
+		for (int32 Index : JunctionIncoming[Lane.Junction])
 		{
-			const FVBLane& Other = Lanes[Index];
-			if (Index == Agent.Lane || Other.bConnector || Other.Junction != Lane.Junction)
+			if (Index == Agent.Lane)
 			{
 				continue;
 			}
+			const FVBLane& Other = Lanes[Index];
 			for (int32 OtherIndex : AgentsOnLane[Index])
 			{
 				const FVBTrafficAgent& OtherAgent = Agents[OtherIndex];
 				const float OtherDistance = Other.Length - OtherAgent.S - VehicleTypes[OtherAgent.Type].Length * 0.5f - 60.f;
 				if (OtherDistance > 0.f && OtherDistance < 1200.f
-					&& (OtherDistance < MyDistance - 50.f || (FMath::Abs(OtherDistance - MyDistance) <= 50.f && OtherIndex < AgentIndex)))
+					&& (OtherDistance < DistanceToStop - 50.f || (FMath::Abs(OtherDistance - DistanceToStop) <= 50.f && OtherIndex < AgentIndex)))
 				{
 					return false;
 				}
@@ -995,17 +1180,24 @@ void AVBTrafficManager::PlaceAgent(FVBTrafficAgent& Agent, float DeltaSeconds, b
 		|| WeatherType == EVBWeatherType::Fog || WeatherType == EVBWeatherType::Storm;
 
 	Agent.Actor->UpdateVisuals(DeltaSeconds, Agent.V, Steer, bBraking, bLights, Indicator);
+	Agent.Actor->UpdateAudio(Agent.V, FVector::DistSquared(Location, PlayerLocation) < FMath::Square(4000.f));
 }
 
 void AVBTrafficManager::DrawDebug() const
 {
 	UWorld* World = GetWorld();
+	const float RadiusSq = FMath::Square(SimulationRadius);
+	const double Now = World->GetTimeSeconds();
 	for (const FVBLane& Lane : Lanes)
 	{
-		FColor Color = Lane.bConnector ? (Lane.Turn < 0 ? FColor::Orange : (Lane.Turn > 0 ? FColor::Cyan : FColor::White)) : FColor::Green;
-		if (!Lane.bConnector && Lane.Signal.IsValid())
+		if (FVector::DistSquared2D(Lane.P0, PlayerLocation) > RadiusSq)
 		{
-			const EVBSignalState State = Lane.Signal->GetState();
+			continue;
+		}
+		FColor Color = Lane.bConnector ? (Lane.Turn < 0 ? FColor::Orange : (Lane.Turn > 0 ? FColor::Cyan : FColor::White)) : FColor::Green;
+		if (!Lane.bConnector && Lane.bHasSignal)
+		{
+			const EVBSignalState State = Lane.Signal.StateAt(Now);
 			Color = State == EVBSignalState::Green ? FColor::Green : (State == EVBSignalState::Red ? FColor::Red : FColor::Yellow);
 		}
 		FVector Previous = Lane.P0;

@@ -2,6 +2,7 @@
 
 #include "VBGameSettings.h"
 #include "VBLog.h"
+#include "VBStats.h"
 #include "VBPedestrian.h"
 #include "VBStreetBuilder.h"
 #include "VBTimeOfDaySubsystem.h"
@@ -16,6 +17,9 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
+
+DECLARE_CYCLE_STAT(TEXT("Passanten (Tick)"), STAT_VBCrowd, STATGROUP_VeyraBay);
+DECLARE_DWORD_COUNTER_STAT(TEXT("Passanten"), STAT_VBCrowdCount, STATGROUP_VeyraBay);
 
 namespace VBCrowd
 {
@@ -54,6 +58,9 @@ AVBCrowdManager::AVBCrowdManager()
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickGroup = TG_PrePhysics;
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+#if WITH_EDITORONLY_DATA
+	bIsSpatiallyLoaded = false;     // verwaltet die ganze Stadt
+#endif
 
 	FRichCurve* Curve = DensityByHour.GetRichCurve();
 	const float Keys[][2] = { {0.f, 0.1f}, {5.f, 0.05f}, {7.f, 0.5f}, {9.f, 0.8f}, {12.f, 1.f}, {18.f, 1.f},
@@ -74,10 +81,46 @@ void AVBCrowdManager::BeginPlay()
 		break;
 	}
 	LoadAssets();
-	BuildGraph();
+	if (Nodes.Num() == 0)
+	{
+		BuildGraph();   // nicht gebacken (kleine Testkarte)
+	}
+	if (const APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		FRotator Rotation;
+		PC->GetPlayerViewPoint(PlayerLocation, Rotation);
+	}
+	UpdateNearEdges();
 	if (bEnableCrowd && LoadedMeshes.Num() > 0)
 	{
 		UpdateDensity(0.f);
+	}
+}
+
+void AVBCrowdManager::BakeNetwork()
+{
+	Modify();
+	BuildGraph();
+}
+
+void AVBCrowdManager::UpdateNearEdges()
+{
+	NearEdges.Reset();
+	NearSidewalk = 0.f;
+	const float RadiusSq = FMath::Square(SimulationRadius);
+	for (int32 Index = 0; Index < Edges.Num(); ++Index)
+	{
+		const FVBWalkEdge& Edge = Edges[Index];
+		if (Edge.bCrossing)
+		{
+			continue;
+		}
+		const FVector Mid = (Nodes[Edge.A].Location + Nodes[Edge.B].Location) * 0.5f;
+		if (FVector::DistSquared2D(Mid, PlayerLocation) < RadiusSq)
+		{
+			NearEdges.Add(Index);
+			NearSidewalk += Edge.Length;
+		}
 	}
 }
 
@@ -131,19 +174,32 @@ void AVBCrowdManager::LoadAssets()
 // ---------------------------------------------------------------------------------------------
 int32 AVBCrowdManager::AddNode(const FVector& Location, float MergeDistance)
 {
-	for (int32 Index = 0; Index < Nodes.Num(); ++Index)
+	const float CellSize = 1000.f;
+	const FIntPoint Cell(FMath::FloorToInt(Location.X / CellSize), FMath::FloorToInt(Location.Y / CellSize));
+	for (int32 DX = -1; DX <= 1; ++DX)
 	{
-		if (FVector::Dist2D(Nodes[Index].Location, Location) < MergeDistance)
+		for (int32 DY = -1; DY <= 1; ++DY)
 		{
-			return Index;
+			if (const TArray<int32>* Bucket = NodeGrid.Find(Cell + FIntPoint(DX, DY)))
+			{
+				for (int32 Index : *Bucket)
+				{
+					if (FVector::Dist2D(Nodes[Index].Location, Location) < MergeDistance)
+					{
+						return Index;
+					}
+				}
+			}
 		}
 	}
 	FVBWalkNode Node;
 	Node.Location = Location;
-	return Nodes.Add(MoveTemp(Node));
+	const int32 NewIndex = Nodes.Add(MoveTemp(Node));
+	NodeGrid.FindOrAdd(Cell).Add(NewIndex);
+	return NewIndex;
 }
 
-void AVBCrowdManager::AddEdge(int32 A, int32 B, bool bCrossing, AVBTrafficLight* Signal)
+void AVBCrowdManager::AddEdge(int32 A, int32 B, bool bCrossing, const AVBTrafficLight* Signal)
 {
 	if (A == B)
 	{
@@ -160,7 +216,11 @@ void AVBCrowdManager::AddEdge(int32 A, int32 B, bool bCrossing, AVBTrafficLight*
 	Edge.A = A;
 	Edge.B = B;
 	Edge.bCrossing = bCrossing;
-	Edge.Signal = Signal;
+	Edge.bHasSignal = Signal != nullptr;
+	if (Signal)
+	{
+		Edge.Signal = Signal->GetTiming();
+	}
 	Edge.Length = FVector::Dist2D(Nodes[A].Location, Nodes[B].Location);
 	const int32 Index = Edges.Add(Edge);
 	Nodes[A].Edges.Add(Index);
@@ -173,6 +233,10 @@ void AVBCrowdManager::AddEdge(int32 A, int32 B, bool bCrossing, AVBTrafficLight*
 
 void AVBCrowdManager::BuildGraph()
 {
+	Nodes.Reset();
+	Edges.Reset();
+	NodeGrid.Reset();
+	TotalSidewalk = 0.f;
 	struct FJunction
 	{
 		FVector Center;
@@ -244,7 +308,7 @@ void AVBCrowdManager::BuildGraph()
 		for (const FSide& Side : Sides)
 		{
 			const bool bArm = Junction.Arms.ContainsByPredicate([&Side](const FVector& Arm) { return FVector::DotProduct(Arm, Side.Dir) > 0.9f; });
-			AVBTrafficLight* Signal = nullptr;
+			const AVBTrafficLight* Signal = nullptr;
 			if (bArm)
 			{
 				float Best = 1600.f;
@@ -277,6 +341,7 @@ void AVBCrowdManager::BuildGraph()
 		}
 	}
 
+	NodeGrid.Reset();
 	UE_LOG(LogVB, Log, TEXT("Passanten: %d Knoten, %d Wege, %d Uebergaenge, %.0f m Gehweg"), Nodes.Num(), Edges.Num(), Crossings, TotalSidewalk / 100.f);
 }
 
@@ -313,7 +378,7 @@ void AVBCrowdManager::UpdateDensity(float DeltaSeconds)
 	const float Hour = Time ? Time->GetTimeOfDay() : 12.f;
 	const float Density = FMath::Clamp(DensityByHour.GetRichCurveConst()->Eval(Hour), 0.f, 1.f)
 		* VBCrowd::WeatherDensity(Weather ? Weather->GetWeather() : EVBWeatherType::Clear);
-	const int32 Target = FMath::Min(MaxPedestrians, FMath::RoundToInt(TotalSidewalk / 10000.f * PedestriansPer100m * Density));
+	const int32 Target = FMath::Min(MaxPedestrians, FMath::RoundToInt(NearSidewalk / 10000.f * PedestriansPer100m * Density));
 
 	if (DeltaSeconds <= 0.f)
 	{
@@ -341,7 +406,7 @@ void AVBCrowdManager::UpdateDensity(float DeltaSeconds)
 		{
 			bool bInView = false;
 			const float Distance = DistanceToPlayer(Walkers[Index].Actor->GetActorLocation(), &bInView);
-			if (Distance > 6000.f || (!bInView && Distance > 2500.f))
+			if (Distance > SimulationRadius * 0.6f || (!bInView && Distance > 2500.f))
 			{
 				RemoveWalker(Index);
 				break;
@@ -352,28 +417,20 @@ void AVBCrowdManager::UpdateDensity(float DeltaSeconds)
 
 bool AVBCrowdManager::TrySpawn(bool bAvoidPlayer)
 {
-	if (TotalSidewalk <= 0.f || LoadedMeshes.Num() == 0)
+	if (NearSidewalk <= 0.f || NearEdges.Num() == 0 || LoadedMeshes.Num() == 0)
 	{
 		return false;
 	}
-	float Pick = Random.FRand() * TotalSidewalk;
-	int32 EdgeIndex = INDEX_NONE;
-	for (int32 Index = 0; Index < Edges.Num(); ++Index)
+	float Pick = Random.FRand() * NearSidewalk;
+	int32 EdgeIndex = NearEdges.Last();
+	for (int32 Candidate : NearEdges)
 	{
-		if (Edges[Index].bCrossing)
-		{
-			continue;
-		}
-		Pick -= Edges[Index].Length;
+		Pick -= Edges[Candidate].Length;
 		if (Pick <= 0.f)
 		{
-			EdgeIndex = Index;
+			EdgeIndex = Candidate;
 			break;
 		}
-	}
-	if (EdgeIndex == INDEX_NONE)
-	{
-		return false;
 	}
 	const FVBWalkEdge& Edge = Edges[EdgeIndex];
 	const FVector A = Nodes[Edge.A].Location;
@@ -384,7 +441,7 @@ bool AVBCrowdManager::TrySpawn(bool bAvoidPlayer)
 
 	bool bInView = false;
 	const float Distance = DistanceToPlayer(Location, &bInView);
-	if (Distance < 600.f || (bAvoidPlayer && bInView && Distance < 7000.f))
+	if (Distance < 600.f || Distance > SimulationRadius || (bAvoidPlayer && bInView && Distance < SimulationRadius * 0.5f))
 	{
 		return false;
 	}
@@ -435,12 +492,13 @@ void AVBCrowdManager::RemoveWalker(int32 Index)
 // ---------------------------------------------------------------------------------------------
 bool AVBCrowdManager::MayCross(const FVBWalkEdge& Edge, float Speed) const
 {
-	const AVBTrafficLight* Signal = Edge.Signal.Get();
-	if (!Signal)
+	if (!Edge.bHasSignal)
 	{
 		return true;   // Zebrastreifen ohne Ampel: Fussgaenger haben Vorrang, Autos halten
 	}
-	return Signal->GetState() == EVBSignalState::Red && Signal->GetTimeUntilChange() > Edge.Length / FMath::Max(Speed, 50.f) + 1.5f;
+	float Remaining = 0.f;
+	const EVBSignalState State = Edge.Signal.StateAt(GetWorld()->GetTimeSeconds(), &Remaining);
+	return State == EVBSignalState::Red && Remaining > Edge.Length / FMath::Max(Speed, 50.f) + 1.5f;
 }
 
 int32 AVBCrowdManager::PickNextEdge(int32 Node, int32 FromEdge)
@@ -535,11 +593,25 @@ void AVBCrowdManager::StepWalker(FVBWalker& Walker, float DeltaSeconds)
 
 void AVBCrowdManager::Tick(float DeltaSeconds)
 {
+	SCOPE_CYCLE_COUNTER(STAT_VBCrowd);
 	Super::Tick(DeltaSeconds);
+	SET_DWORD_STAT(STAT_VBCrowdCount, Walkers.Num());
 	if (!bEnableCrowd || Edges.Num() == 0)
 	{
 		return;
 	}
+	if (const APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		FRotator Rotation;
+		PC->GetPlayerViewPoint(PlayerLocation, Rotation);
+	}
+	NearTimer -= DeltaSeconds;
+	if (NearTimer <= 0.f)
+	{
+		NearTimer = 1.f;
+		UpdateNearEdges();
+	}
+	const float DespawnSq = FMath::Square(SimulationRadius + 4000.f);
 	for (int32 Index = Walkers.Num() - 1; Index >= 0; --Index)
 	{
 		FVBWalker& Walker = Walkers[Index];
@@ -548,7 +620,16 @@ void AVBCrowdManager::Tick(float DeltaSeconds)
 			Walkers.RemoveAtSwap(Index);
 			continue;
 		}
+		if (FVector::DistSquared2D(Walker.Actor->GetActorLocation(), PlayerLocation) > DespawnSq)
+		{
+			RemoveWalker(Index);
+			continue;
+		}
 		StepWalker(Walker, DeltaSeconds);
+		if (FVector::DistSquared(Walker.Actor->GetActorLocation(), PlayerLocation) < FMath::Square(1500.f))
+		{
+			Walker.Actor->UpdateFootsteps(DeltaSeconds);
+		}
 		if (Walker.StuckTime > 6.f)
 		{
 			bool bInView = false;
@@ -573,8 +654,13 @@ void AVBCrowdManager::Tick(float DeltaSeconds)
 
 void AVBCrowdManager::DrawDebug() const
 {
+	const float RadiusSq = FMath::Square(SimulationRadius);
 	for (const FVBWalkEdge& Edge : Edges)
 	{
+		if (FVector::DistSquared2D(Nodes[Edge.A].Location, PlayerLocation) > RadiusSq)
+		{
+			continue;
+		}
 		FColor Color = FColor::Blue;
 		if (Edge.bCrossing)
 		{
@@ -582,4 +668,51 @@ void AVBCrowdManager::DrawDebug() const
 		}
 		DrawDebugLine(GetWorld(), Nodes[Edge.A].Location + FVector(0, 0, 10), Nodes[Edge.B].Location + FVector(0, 0, 10), Color, false, -1.f, 0, 5.f);
 	}
+}
+
+AVBPedestrian* AVBCrowdManager::SpawnStandingPedestrian(const FVector& Location, const FVector& FaceTowards)
+{
+	if (LoadedMeshes.Num() == 0)
+	{
+		return nullptr;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	Params.Owner = this;
+	const FVector SpawnAt = Location + FVector(0.f, 0.f, 97.f);
+	const FRotator Rotation(0.f, (FaceTowards - Location).GetSafeNormal2D().Rotation().Yaw, 0.f);
+	AVBPedestrian* Ped = GetWorld()->SpawnActor<AVBPedestrian>(SpawnAt, Rotation, Params);
+	if (!Ped)
+	{
+		return nullptr;
+	}
+	Ped->GetMesh()->SetSkeletalMeshAsset(LoadedMeshes[Random.RandRange(0, LoadedMeshes.Num() - 1)]);
+	if (LoadedAnimClass)
+	{
+		Ped->GetMesh()->SetAnimInstanceClass(LoadedAnimClass);
+	}
+	return Ped;
+}
+
+bool AVBCrowdManager::FindSidewalkPoint(const FVector& Center, float MinDistance, float MaxDistance, FVector& OutPoint, FVector& OutStreetDirection)
+{
+	for (int32 Attempt = 0; Attempt < 60 && Edges.Num() > 0; ++Attempt)
+	{
+		const FVBWalkEdge& Edge = Edges[Random.RandRange(0, Edges.Num() - 1)];
+		if (Edge.bCrossing || Edge.Length < 2000.f)
+		{
+			continue;
+		}
+		const FVector A = Nodes[Edge.A].Location;
+		const FVector B = Nodes[Edge.B].Location;
+		const FVector Point = FMath::Lerp(A, B, Random.FRandRange(0.3f, 0.7f));
+		const float Distance = FVector::Dist2D(Point, Center);
+		if (Distance >= MinDistance && Distance <= MaxDistance)
+		{
+			OutPoint = Point;
+			OutStreetDirection = (B - A).GetSafeNormal2D();
+			return true;
+		}
+	}
+	return false;
 }

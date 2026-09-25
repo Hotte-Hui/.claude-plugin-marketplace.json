@@ -65,6 +65,9 @@ AVBStreetLight::AVBStreetLight()
 	Lamp->Temperature = 3800.f;
 	Lamp->VolumetricScatteringIntensity = 1.5f;
 	Lamp->CastShadows = true;
+	// Hunderte Laternen im Streaming-Bereich: Licht und Schatten nur in der Naehe berechnen
+	Lamp->MaxDrawDistance = 15000.f;
+	Lamp->MaxDistanceFadeRange = 3000.f;
 
 	NightSwitch = CreateDefaultSubobject<UVBNightLightComponent>(TEXT("NightSwitch"));
 }

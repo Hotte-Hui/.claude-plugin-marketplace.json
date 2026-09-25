@@ -78,7 +78,7 @@ public:
 	int32 BaysY = 4;
 
 	/** Geschosse inklusive Erdgeschoss. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building", meta = (ClampMin = "1", ClampMax = "30"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building", meta = (ClampMin = "1", ClampMax = "60"))
 	int32 Floors = 5;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building")

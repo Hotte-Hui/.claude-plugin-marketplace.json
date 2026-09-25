@@ -2,7 +2,10 @@
 
 #include "VBGraphicsSubsystem.h"
 #include "VBInteractionComponent.h"
+#include "VBEventSubsystem.h"
+#include "VBMissionSubsystem.h"
 #include "VBPlayerCharacter.h"
+#include "VBPlayerController.h"
 #include "VBVehicle.h"
 #include "VBTimeOfDaySubsystem.h"
 #include "VBWeatherSubsystem.h"
@@ -36,6 +39,7 @@ void AVBHUD::DrawHUD()
 	DrawSetupHint(UIScale);
 	DrawInteractionPrompt(UIScale);
 	DrawVehicleHUD(UIScale);
+	DrawMission(UIScale);
 	DrawToast(UIScale);
 
 	if (bShowDebugInfo)
@@ -43,7 +47,8 @@ void AVBHUD::DrawHUD()
 		DrawDebugInfo(UIScale);
 	}
 
-	if (PlayerOwner && PlayerOwner->IsPaused())
+	const AVBPlayerController* VBController = Cast<AVBPlayerController>(PlayerOwner);
+	if (PlayerOwner && PlayerOwner->IsPaused() && !(VBController && VBController->IsMenuOpen()))
 	{
 		DrawPauseOverlay(UIScale);
 	}
@@ -148,8 +153,90 @@ void AVBHUD::DrawVehicleHUD(float UIScale)
 	DrawText(SpeedText, FLinearColor::White, Right - 20.f * UIScale - Width, Bottom - BoxH + 8.f * UIScale, Large, Scale);
 	DrawText(FString::Printf(TEXT("km/h   Gang %s   %.0f U/min"), *GearText, Vehicle->GetEngineRPM()), VBHUDStyle::Muted,
 		Right - BoxW + 16.f * UIScale, Bottom - 44.f * UIScale, Small, UIScale);
-	DrawText(FString::Printf(TEXT("%s   [L] Licht  [C] Kamera  [R] Aufrichten  [E] Aussteigen"), LightText), VBHUDStyle::Muted,
+	DrawText(FString::Printf(TEXT("%s   [L] Licht  [H] Hupe  [C] Kamera  [R] Aufrichten  [E] Aussteigen"), LightText), VBHUDStyle::Muted,
 		Right - BoxW + 16.f * UIScale, Bottom - 24.f * UIScale, Small, UIScale * 0.85f);
+}
+
+void AVBHUD::DrawMission(float UIScale)
+{
+	if (UVBEventSubsystem* Events = GetWorld() ? GetWorld()->GetSubsystem<UVBEventSubsystem>() : nullptr)
+	{
+		const FString Notice = Events->ConsumeNotice();
+		if (!Notice.IsEmpty())
+		{
+			ShowToast(Notice, 5.f);
+		}
+	}
+	const UVBMissionSubsystem* Missions = GetWorld() ? GetWorld()->GetSubsystem<UVBMissionSubsystem>() : nullptr;
+	if (!Missions)
+	{
+		return;
+	}
+	UFont* Medium = GEngine->GetMediumFont();
+	UFont* Large = GEngine->GetLargeFont();
+
+	// Titel + Ziel (oben links, unter den Debug-Infos frei)
+	const FString Title = Missions->GetMissionTitle();
+	const FString Objective = Missions->GetObjective();
+	float Y = Canvas->ClipY * 0.22f;
+	if (!Title.IsEmpty())
+	{
+		DrawPanel(Title.ToUpper(), 30.f * UIScale, Y, Medium, UIScale, false, VBHUDStyle::Accent);
+		Y += 40.f * UIScale;
+	}
+	if (!Objective.IsEmpty())
+	{
+		DrawPanel(Objective, 30.f * UIScale, Y, Medium, UIScale * 0.9f, false);
+	}
+
+	// Zeitlimit (oben Mitte)
+	float Seconds = 0.f;
+	if (Missions->GetTimer(Seconds))
+	{
+		const int32 Total = FMath::Max(0, FMath::CeilToInt(Seconds));
+		const FLinearColor Color = Total < 30 ? FLinearColor(1.f, 0.3f, 0.2f) : FLinearColor::White;
+		DrawPanel(FString::Printf(TEXT("%d:%02d"), Total / 60, Total % 60), Canvas->ClipX * 0.5f, 20.f * UIScale, Large, UIScale * 1.4f, true, Color);
+	}
+
+	// Dialog (unten Mitte)
+	FString Speaker, Text;
+	if (Missions->GetDialogue(Speaker, Text))
+	{
+		const FString Line = Speaker.IsEmpty() ? Text : FString::Printf(TEXT("%s:  %s"), *Speaker, *Text);
+		DrawPanel(Line, Canvas->ClipX * 0.5f, Canvas->ClipY * 0.8f, Medium, UIScale, true);
+	}
+
+	// Banner (Mitte)
+	FString Banner;
+	if (Missions->GetBanner(Banner))
+	{
+		DrawPanel(Banner, Canvas->ClipX * 0.5f, Canvas->ClipY * 0.35f, Large, UIScale * 1.3f, true, VBHUDStyle::Accent);
+	}
+
+	// Zielmarkierung mit Entfernung (am Bildrand, wenn ausserhalb)
+	FVector Target;
+	if (PlayerOwner && Missions->GetTarget(Target))
+	{
+		FVector ViewLocation;
+		FRotator ViewRotation;
+		PlayerOwner->GetPlayerViewPoint(ViewLocation, ViewRotation);
+		const FVector Probe = Target + FVector(0.f, 0.f, 300.f);
+		const float Distance = FVector::Dist(ViewLocation, Target) / 100.f;
+		const bool bBehind = FVector::DotProduct((Probe - ViewLocation).GetSafeNormal(), ViewRotation.Vector()) < 0.f;
+		FVector Screen = Project(Probe);
+		float SX = Screen.X;
+		float SY = Screen.Y;
+		if (bBehind)
+		{
+			SX = Canvas->ClipX - SX;
+			SY = Canvas->ClipY * 0.85f;
+		}
+		const float Margin = 60.f * UIScale;
+		SX = FMath::Clamp(SX, Margin, Canvas->ClipX - Margin);
+		SY = FMath::Clamp(SY, Margin, Canvas->ClipY - Margin);
+		const FString Label = Distance > 1000.f ? FString::Printf(TEXT("%.1f km"), Distance / 1000.f) : FString::Printf(TEXT("%.0f m"), Distance);
+		DrawPanel(FString::Printf(TEXT("<> %s"), *Label), SX, SY, Medium, UIScale * 0.85f, true, VBHUDStyle::Accent);
+	}
 }
 
 void AVBHUD::DrawToast(float UIScale)

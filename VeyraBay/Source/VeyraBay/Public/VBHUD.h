@@ -32,6 +32,7 @@ private:
 	void DrawPauseOverlay(float UIScale);
 	void DrawSetupHint(float UIScale);
 	void DrawVehicleHUD(float UIScale);
+	void DrawMission(float UIScale);
 
 	int32 PerfLevel = 0;
 	bool bShowDebugInfo = false;

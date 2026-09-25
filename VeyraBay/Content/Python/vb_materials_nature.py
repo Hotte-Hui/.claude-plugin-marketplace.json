@@ -180,11 +180,17 @@ def build_ocean_material(mpc):
     # Kuestenschaum aus der Gelaende-Hoehenkarte (Wassertiefe < ~1.2 m)
     foam = None
     if height_tex is not None and foam_tex is not None:
-        terrain_uv = g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionAdd, world_xy, TERRAIN_EXTENT_CM, -2100, 600),
-                          2 * TERRAIN_EXTENT_CM, -1950, 600)
-        terrain_h = g.texture(height_tex, terrain_uv, -1800, 600, sampler.SAMPLERTYPE_LINEAR_GRAYSCALE)
-        ground = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, terrain_h, HEIGHT_RANGE_CM, -1650, 600, a_out="R"),
-                      HEIGHT_MIN_CM, -1500, 600)
+        # Als Parameter, damit die grosse Stadtkarte (Phase 7) eine eigene Hoehenkarte nutzen kann (MI_VB_OceanCity)
+        extent = g.scalar("TerrainExtentCm", TERRAIN_EXTENT_CM, -2400, 600, group="Shore")
+        height_min = g.scalar("HeightMinCm", HEIGHT_MIN_CM, -1800, 760, group="Shore")
+        height_range = g.scalar("HeightRangeCm", HEIGHT_RANGE_CM, -1800, 680, group="Shore")
+        terrain_uv = g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionAdd, world_xy, extent, -2100, 600),
+                          g.op(unreal.MaterialExpressionMultiply, extent, 2.0, -2250, 680), -1950, 600)
+        terrain_h = g.node(unreal.MaterialExpressionTextureSampleParameter2D, -1800, 600, parameter_name="TerrainHeightMap",
+                           texture=height_tex, sampler_type=sampler.SAMPLERTYPE_LINEAR_GRAYSCALE, group="Shore")
+        g.link(terrain_uv, "", terrain_h, "UVs")
+        ground = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, terrain_h, height_range, -1650, 600, a_out="R"),
+                      height_min, -1500, 600)
         water_depth = g.op(unreal.MaterialExpressionSubtract, g.node(unreal.MaterialExpressionConstant, -1500, 700, r=SEA_LEVEL_CM), ground,
                            -1350, 650)
         shallow = g.unary(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide, water_depth, 120.0, -1200, 650),

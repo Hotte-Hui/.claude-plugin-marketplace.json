@@ -116,6 +116,7 @@ void UVBInputSet::Build()
 	VehicleLights = MakeAction(this, TEXT("IA_Vehicle_Lights"),    EInputActionValueType::Boolean);
 	VehicleReset  = MakeAction(this, TEXT("IA_Vehicle_Reset"),     EInputActionValueType::Boolean);
 	VehicleCamera = MakeAction(this, TEXT("IA_Vehicle_Camera"),    EInputActionValueType::Boolean);
+	Horn          = MakeAction(this, TEXT("IA_Vehicle_Horn"),      EInputActionValueType::Boolean);
 	{
 		UInputMappingContext* C = VehicleContext;
 		C->MapKey(Throttle, EKeys::W);
@@ -147,6 +148,8 @@ void UVBInputSet::Build()
 		C->MapKey(VehicleLights, EKeys::Gamepad_DPad_Up);
 		C->MapKey(VehicleReset, EKeys::R);
 		C->MapKey(VehicleReset, EKeys::Gamepad_DPad_Right);
+		C->MapKey(Horn, EKeys::H);
+		C->MapKey(Horn, EKeys::Gamepad_LeftShoulder);
 		C->MapKey(VehicleCamera, EKeys::C);
 		C->MapKey(VehicleCamera, EKeys::Gamepad_RightThumbstick);
 
