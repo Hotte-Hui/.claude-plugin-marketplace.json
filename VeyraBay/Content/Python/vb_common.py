@@ -19,7 +19,7 @@ FOLDERS = [
     "Vehicles",
     "Environment/Buildings", "Environment/Roads", "Environment/Props", "Environment/Vegetation",
     "Environment/Landmarks", "Environment/Terrain",
-    "Materials/Global", "Materials/Master", "Materials/Functions", "Materials/Instances", "Materials/Decals",
+    "Materials/Global", "Materials/Master", "Materials/Shared", "Materials/Surfaces", "Materials/Kit", "Materials/Functions", "Materials/Instances", "Materials/Decals",
     "Textures/Default", "Textures/Surfaces",
     "FX", "Weather", "AI/StateTree", "AI/SmartObjects", "AI/ZoneGraph",
     "UI", "Audio", "Systems",
@@ -30,6 +30,14 @@ FOLDERS = [
 MAP_DEV = ROOT + "/World/Maps/L_VB_Dev"
 MPC_WORLD = ROOT + "/Materials/Global/MPC_VB_World"
 MASTER_SURFACE = ROOT + "/Materials/Master/M_VB_Surface"
+
+SHARED_MATERIALS = ROOT + "/Materials/Shared"
+
+
+def shared_material_path(name):
+    """Gemeinsame, vom Setup erzeugte Material-Instanzen (z. B. Window, WindowShop)."""
+    return "%s/MI_VB_%s" % (SHARED_MATERIALS, name)
+
 
 GENERATED_TAG = "VB_Generated"
 PROTOTYPE_TAG = "VB_Prototype"

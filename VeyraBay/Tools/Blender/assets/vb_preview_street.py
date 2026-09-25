@@ -35,9 +35,10 @@ def append_objects(blend, names):
 
 
 def place(template, location, yaw=0.0):
+    """Platziert in UNREAL-Koordinaten (wie AVBStreetBuilder) und rechnet nach Blender um (Y und Yaw negiert)."""
     copy = bpy.data.objects.new(template.name + "_inst", template.data)
-    copy.location = location
-    copy.rotation_euler = (0.0, 0.0, math.radians(yaw))
+    copy.location = (location[0], -location[1], location[2])
+    copy.rotation_euler = (0.0, 0.0, math.radians(-yaw))
     bpy.context.collection.objects.link(copy)
     return copy
 
@@ -56,7 +57,7 @@ def main():
         place(kit["SM_VB_Road_10m_Crosswalk" if i == 3 else "SM_VB_Road_10m"], (i * 10.0, 0, 0))
     for i in range(int(LENGTH / 2)):
         for name in ("SM_VB_Curb_2m", "SM_VB_Sidewalk_2m"):
-            place(kit[name], (i * 2.0, CURB, 0))
+            place(kit[name], (i * 2.0, CURB, 0))                # wie AVBStreetBuilder::BuildEdges
             place(kit[name], (i * 2.0 + 2.0, -CURB, 0), 180)
 
     rng = random.Random(3)
@@ -70,7 +71,7 @@ def main():
         place(kit["SM_VB_TrashBin_A"], (x, -6.9, 0.15), 90)
     place(kit["SM_VB_Hydrant_A"], (27.0, 7.0, 0.15), -90)
     place(kit["SM_VB_Sign_NoStopping"], (23.0, -6.7, 0.15), 0)
-    place(kit["SM_VB_TrafficLight_A"], (31.0, 7.0, 0.15), 180)
+    place(kit["SM_VB_TrafficLight_A"], (31.0, 7.0, 0.15), 180)   # wie vb_setup (Unreal-Koordinaten)
     place(kit["SM_VB_TrafficLight_A"], (39.0, -7.0, 0.15), 0)
     for x in (2.5, 27.5, 52.5):
         place(kit["SM_VB_StreetLight_A"], (x, 7.0, 0.15), -90)
@@ -83,7 +84,7 @@ def main():
         while x < LENGTH + 10:
             width = rng.uniform(14, 28)
             height = rng.choice([9, 12, 15, 18, 24, 32])
-            bpy.ops.mesh.primitive_cube_add(size=1, location=(x + width / 2, side * (9.78 + 10), height / 2))
+            bpy.ops.mesh.primitive_cube_add(size=1, location=(x + width / 2, -side * (9.78 + 10), height / 2))
             building = bpy.context.active_object
             building.scale = (width, 20, height)
             material = bpy.data.materials.new("Facade")

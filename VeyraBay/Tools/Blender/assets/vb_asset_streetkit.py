@@ -4,6 +4,10 @@ Aufruf:
     blender -b --factory-startup --python vb_asset_streetkit.py -- --out <SourceAssets/Export>
             [--blend <datei.blend>] [--preview <ordner>] [--textures <SourceAssets/Export>]
 
+Alle Masse sind in UNREAL-Koordinaten angegeben (X vorwaerts, Y rechts); die Teile werden vor dem
+Export mit lib.mirror_to_unreal() gespiegelt, weil der FBX-Import Y negiert.
+Rechtsverkehr: Fahrtrichtung +X faehrt auf der +Y-Seite.
+
 Querschnitt (Meter, Y quer zur Strasse, Strassenmitte = 0, Fahrtrichtung +X):
     Fahrbahn Asphalt  |y| <= 5.60   Wölbung: 6 cm in der Mitte, linear zum Rand
     Rinne (Beton)     5.60 .. 6.00  faellt von 0 auf -1 cm
@@ -35,6 +39,7 @@ PAVER_JOINT = 0.004
 SIDEWALK_ROWS = 9
 SIDEWALK_LENGTH = 2.0
 CURB_LENGTH = 2.0
+CURB = GUTTER_OUTER  # Bordsteinkante (Abstand zur Strassenmitte)
 
 
 def road_z(y):
@@ -157,6 +162,7 @@ def build_road(name, m, crosswalk=False):
     obj = lib.bm_to_object(bm, name)
     lib.assign_materials(obj, [m["asphalt"], m["gutter"], m["paint"]])
     lib.uv_meters(obj)
+    lib.mirror_to_unreal(obj)
     return lib.finalize(obj, "Roads", nanite=True, collision="complex", puddle_response=1.0)
 
 
@@ -178,6 +184,7 @@ def build_curb(m):
     lib.assign_materials(obj, [m["granite"]])
     lib.apply_modifiers(obj)
     lib.uv_meters(obj)
+    lib.mirror_to_unreal(obj)
     return lib.finalize(obj, "Roads", nanite=True, collision="auto", puddle_response=0.0)
 
 
@@ -220,6 +227,7 @@ def build_sidewalk(m):
     lib.uv_meters(bedding)
 
     obj = lib.join(slabs + [bedding], "SM_VB_Sidewalk_2m")
+    lib.mirror_to_unreal(obj)
     return lib.finalize(obj, "Roads", nanite=True, collision="auto", puddle_response=1.0)
 
 
@@ -440,15 +448,170 @@ def build_signal_lens(m):
     return lib.finalize(obj, "Props", nanite=False, collision="none")
 
 
+# ---------------------------------------------------------------------------
+# Kreuzung (4 Arme, Bordsteinradius 3 m, Zebrastreifen + Haltelinien)
+# ---------------------------------------------------------------------------
+INTERSECTION_HALF = CURB + CURB_WIDTH + SIDEWALK_ROWS * PAVER   # 9.78 m bis zur Gebaeudeflucht
+CORNER_RADIUS = 3.0
+
+
+def intersection_z(x, y):
+    ax, ay = abs(x), abs(y)
+    return CROWN * max(1.0 - ax / ASPHALT_HALF, 1.0 - ay / ASPHALT_HALF, 0.0)
+
+
+def is_road(x, y):
+    ax, ay = abs(x), abs(y)
+    if ax <= CURB or ay <= CURB:
+        return True
+    corner = CURB + CORNER_RADIUS
+    return ax < corner and ay < corner and math.hypot(ax - corner, ay - corner) > CORNER_RADIUS
+
+
+def is_sidewalk(x, y, margin=CURB_WIDTH):
+    ax, ay = abs(x), abs(y)
+    if ax < CURB + margin or ay < CURB + margin:
+        return False
+    corner = CURB + CORNER_RADIUS
+    if ax >= corner or ay >= corner:
+        return True
+    return math.hypot(ax - corner, ay - corner) <= CORNER_RADIUS - margin
+
+
+def curb_path(sx, sy):
+    """Bordsteinkante eines Quadranten: (Punkt, Normale zum Gehweg). Unreal-Koordinaten."""
+    corner = CURB + CORNER_RADIUS
+    points = [((INTERSECTION_HALF, CURB), (0.0, 1.0)), ((corner, CURB), (0.0, 1.0))]
+    steps = 16
+    for i in range(1, steps):
+        angle = math.radians(-90.0 - 90.0 * i / steps)
+        px, py = corner + CORNER_RADIUS * math.cos(angle), corner + CORNER_RADIUS * math.sin(angle)
+        points.append(((px, py), ((corner - px) / CORNER_RADIUS, (corner - py) / CORNER_RADIUS)))
+    points += [((CURB, corner), (1.0, 0.0)), ((CURB, INTERSECTION_HALF), (1.0, 0.0))]
+    return [((px * sx, py * sy), (nx * sx, ny * sy)) for (px, py), (nx, ny) in points]
+
+
+def sweep_curb(bm, path, flip, material_index):
+    radius = 0.03
+    profile = [(0.0, -0.25), (0.0, CURB_HEIGHT - radius)]
+    for step in range(1, 6):
+        angle = math.radians(180 - 90 * step / 6)
+        profile.append((radius + radius * math.cos(angle), CURB_HEIGHT - radius + radius * math.sin(angle)))
+    profile += [(radius, CURB_HEIGHT), (CURB_WIDTH, CURB_HEIGHT), (CURB_WIDTH, -0.25)]
+    rings = [[bm.verts.new((px + nx * d, py + ny * d, z)) for d, z in profile] for (px, py), (nx, ny) in path]
+    count = len(profile)
+    for a, b in zip(rings[:-1], rings[1:]):
+        for i in range(count):
+            j = (i + 1) % count
+            quad = (a[i], a[j], b[j], b[i])
+            face = bm.faces.new(tuple(reversed(quad)) if flip else quad)
+            face.material_index = material_index
+
+
+def build_intersection(m):
+    bm = bmesh.new()
+    half, cell = INTERSECTION_HALF, 0.25
+    count = int(round(2 * half / cell))
+    grid = {}
+
+    def vert(i, j):
+        key = (i, j)
+        if key not in grid:
+            x, y = -half + i * cell, -half + j * cell
+            grid[key] = bm.verts.new((x, y, intersection_z(x, y)))
+        return grid[key]
+
+    for i in range(count):
+        for j in range(count):
+            x0, y0 = -half + i * cell, -half + j * cell
+            corners = [(x0, y0), (x0 + cell, y0), (x0 + cell, y0 + cell), (x0, y0 + cell)]
+            if any(is_road(x, y) for x, y in corners):
+                face = bm.faces.new((vert(i, j), vert(i + 1, j), vert(i + 1, j + 1), vert(i, j + 1)))
+                face.material_index = 0
+
+    # Markierungen je Arm (in Arm-Koordinaten fuer Arm +X gebaut, dann gedreht)
+    def arm_z(y):
+        return CROWN * max(1.0 - abs(y) / ASPHALT_HALF, 0.0)
+
+    for arm in range(4):
+        before = set(bm.faces)
+        for k in range(10):
+            yc = (k - 4.5) * 1.0
+            surface_box(bm, 6.4, 9.2, yc - 0.25, yc + 0.25, arm_z, 0.003, 0.01, 1)
+        # Haltelinie fuer Fahrzeuge, die auf diesem Arm zur Kreuzung fahren (-X): rechte Spur = -Y
+        surface_box(bm, 9.35, 9.65, -5.25, -0.1, arm_z, 0.003, 0.01, 1)
+        new_verts = {v for f in set(bm.faces) - before for v in f.verts}
+        bmesh.ops.rotate(bm, verts=list(new_verts), cent=(0, 0, 0), matrix=Matrix.Rotation(math.radians(90 * arm), 3, "Z"))
+
+    # Bordsteine (4 Quadranten)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            sweep_curb(bm, curb_path(sx, sy), flip=(sx * sy < 0), material_index=2)
+
+    road = lib.bm_to_object(bm, "IntersectionRoad")
+    lib.assign_materials(road, [m["asphalt"], m["paint"], m["granite"], m["paver"], m["joint"]])
+    lib.uv_meters(road)
+
+    # Gehwegplatten in den vier Ecken (nur ganze Platten ausserhalb des Radius) + Bettung darunter
+    rng = random.Random(11)
+    slabs = []
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            for a in range(SIDEWALK_ROWS):
+                for b in range(SIDEWALK_ROWS):
+                    x0 = CURB + CURB_WIDTH + a * PAVER
+                    y0 = CURB + CURB_WIDTH + b * PAVER
+                    corners = [(x0, y0), (x0 + PAVER, y0), (x0 + PAVER, y0 + PAVER), (x0, y0 + PAVER)]
+                    if not all(is_sidewalk(x, y) for x, y in corners):
+                        continue
+                    sbm = bmesh.new()
+                    size = PAVER - PAVER_JOINT
+                    top = CURB_HEIGHT + rng.uniform(-0.0015, 0.0015)
+                    lib.box(sbm, ((x0 + PAVER / 2) * sx, (y0 + PAVER / 2) * sy, top - 0.03), (size, size, 0.06), 3)
+                    slab = lib.bm_to_object(sbm, "CornerSlab")
+                    lib.add_bevel(slab, 0.004, segments=2, limit_angle=50.0)
+                    lib.assign_materials(slab, [m["asphalt"], m["paint"], m["granite"], m["paver"], m["joint"]])
+                    lib.apply_modifiers(slab)
+                    lib.uv_meters(slab)
+                    du, dv = rng.random() * 1.5, rng.random() * 1.5
+                    for loop_uv in slab.data.uv_layers.active.data:
+                        loop_uv.uv = (loop_uv.uv[0] + du, loop_uv.uv[1] + dv)
+                    slabs.append(slab)
+
+    fill = bmesh.new()
+    fcell = 0.1
+    steps = int(round((half - CURB) / fcell))
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            for a in range(steps):
+                for b in range(steps):
+                    x0, y0 = CURB + a * fcell, CURB + b * fcell
+                    if not is_sidewalk(x0 + fcell / 2, y0 + fcell / 2, margin=CURB_WIDTH * 0.5):
+                        continue
+                    quad = [fill.verts.new((x * sx, y * sy, CURB_HEIGHT - 0.012))
+                            for x, y in ((x0, y0), (x0 + fcell, y0), (x0 + fcell, y0 + fcell), (x0, y0 + fcell))]
+                    face = fill.faces.new(quad if sx * sy > 0 else list(reversed(quad)))
+                    face.material_index = 3  # gegossener Beton als Passstueck zwischen Radius und ganzen Platten
+    bmesh.ops.remove_doubles(fill, verts=fill.verts, dist=1e-5)
+    bedding = lib.bm_to_object(fill, "CornerBedding")
+    lib.assign_materials(bedding, [m["asphalt"], m["paint"], m["granite"], m["paver"], m["joint"]])
+    lib.uv_meters(bedding)
+
+    obj = lib.join([road, bedding] + slabs, "SM_VB_Intersection_4Way")
+    lib.mirror_to_unreal(obj)
+    return lib.finalize(obj, "Roads", nanite=True, collision="complex", puddle_response=1.0)
+
+
 BUILDERS = [
     lambda m: build_road("SM_VB_Road_10m", m),
     lambda m: build_road("SM_VB_Road_10m_Crosswalk", m, crosswalk=True),
     build_curb, build_sidewalk, build_manhole, build_bollard, build_bench, build_trash_bin,
-    build_hydrant, build_sign, build_traffic_light, build_signal_lens,
+    build_hydrant, build_sign, build_traffic_light, build_signal_lens, build_intersection,
 ]
 
 # Kamera je Asset: (Ziel, Kameraposition)
 PREVIEWS = {
+    "SM_VB_Intersection_4Way": ((0, 0, 0), (14, -16, 12)),
     "SM_VB_Road_10m_Crosswalk": ((5, 0, 0), (-4, -9, 5)),
     "SM_VB_Curb_2m": ((1, 0.1, 0.05), (2.2, -0.9, 0.5)),
     "SM_VB_Sidewalk_2m": ((1, 1.5, 0.15), (2.6, -0.8, 1.3)),

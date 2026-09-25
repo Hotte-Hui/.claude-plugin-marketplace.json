@@ -183,6 +183,16 @@ def extrude_profile_x(bm, profile_yz, length, segments=1, material_index=0, cap=
     return faces
 
 
+def mirror_to_unreal(obj):
+    """Der FBX-Import von Unreal negiert Y (Blender +Y -> Unreal -Y). Kit-Teile, deren Seite zaehlt
+    (Bordsteine, Fahrspuren, Fassaden), werden in Unreal-Koordinaten modelliert und hier einmal
+    gespiegelt, damit sie in Unreal exakt so liegen wie entworfen."""
+    obj.data.transform(Matrix.Scale(-1.0, 4, (0.0, 1.0, 0.0)))
+    obj.data.flip_normals()
+    obj.data.update()
+    return obj
+
+
 def add_bevel(obj, width, segments=2, limit_angle=35.0):
     modifier = obj.modifiers.new("Bevel", "BEVEL")
     modifier.width = width
@@ -373,6 +383,42 @@ class Shader:
             self.link(parts[index], combine.inputs[index])
         self._torus = (combine.outputs[0], parts[3], separate)
         return self._torus
+
+    def torus_aniso(self, freq_u, freq_v):
+        """Anisotroper Torus: freq_u / freq_v Merkmale pro Kachel in U bzw. V (fuer Streifen, Schlieren)."""
+        _, _, separate = self.torus()
+        parts = []
+        for axis, freq in ((0, freq_u), (1, freq_v)):
+            angle = self.math("MULTIPLY", separate.outputs[axis], 2.0 * math.pi)
+            radius = freq / (2.0 * math.pi)
+            parts.append(self.math("MULTIPLY", self.math("COSINE", angle), radius))
+            parts.append(self.math("MULTIPLY", self.math("SINE", angle), radius))
+        combine = self.nodes.new("ShaderNodeCombineXYZ")
+        for index in range(3):
+            self.link(parts[index], combine.inputs[index])
+        return combine.outputs[0], parts[3]
+
+    def noise_aniso(self, freq_u, freq_v, detail=4.0, roughness=0.5):
+        vector, w = self.torus_aniso(freq_u, freq_v)
+        node = self.node("ShaderNodeTexNoise", noise_dimensions="4D")
+        self.link(vector, node.inputs["Vector"])
+        self.link(w, node.inputs["W"])
+        node.inputs["Scale"].default_value = 1.0
+        node.inputs["Detail"].default_value = detail
+        node.inputs["Roughness"].default_value = roughness
+        return node
+
+    def white_noise(self, vector_socket):
+        """Zufallswert je (ganzzahliger) Zelle - fuer Ziegel, Platten usw."""
+        node = self.node("ShaderNodeTexWhiteNoise", noise_dimensions="3D")
+        self.link(vector_socket, node.inputs["Vector"])
+        return node.outputs["Value"]
+
+    def combine(self, x, y, z=0.0):
+        node = self.nodes.new("ShaderNodeCombineXYZ")
+        for index, value in enumerate((x, y, z)):
+            self._socket(value, node, index)
+        return node.outputs[0]
 
     def noise(self, scale, detail=4.0, roughness=0.5, distortion=0.0):
         vector, w, _ = self.torus()

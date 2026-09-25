@@ -1,0 +1,49 @@
+{
+  "category": "Buildings",
+  "triangles": 1759,
+  "nanite": true,
+  "collision": "auto",
+  "puddle_response": 0.0,
+  "slots": {
+    "FacadeSandstone": {
+      "surface": "Sandstone",
+      "base_color": [
+        0.55,
+        0.47,
+        0.36
+      ],
+      "roughness": 0.8,
+      "metallic": 0.0
+    },
+    "PaintWindowWhite": {
+      "base_color": [
+        0.78,
+        0.77,
+        0.73
+      ],
+      "roughness": 0.4,
+      "metallic": 0.0,
+      "porosity": 0.05
+    },
+    "WindowGlass": {
+      "shared_material": "Window",
+      "base_color": [
+        0.02,
+        0.025,
+        0.03
+      ],
+      "roughness": 0.04,
+      "metallic": 0.0
+    },
+    "PaintIronBlack": {
+      "base_color": [
+        0.025,
+        0.025,
+        0.027
+      ],
+      "roughness": 0.45,
+      "metallic": 0.3,
+      "porosity": 0.0
+    }
+  }
+}

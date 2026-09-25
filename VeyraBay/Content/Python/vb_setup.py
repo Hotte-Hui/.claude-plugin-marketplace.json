@@ -11,6 +11,7 @@ Schritte (idempotent - kann jederzeit erneut ausgefuehrt werden):
   6. Entwicklungskarte L_VB_Dev (World Partition) mit Himmel, Testsstrasse, Laternen, Kalibrierung
 """
 
+import math
 import os
 import random
 
@@ -212,9 +213,26 @@ def build_master_material(mpc):
     # --- Grundwerte -----------------------------------------------------------
     tint = g.node(unreal.MaterialExpressionVectorParameter, -1750, -600,
                   parameter_name="BaseColorTint", default_value=unreal.LinearColor(0.5, 0.5, 0.5, 1.0), group="Surface")
+    # Zweiter Farbton je Gebaeude: Custom Primitive Data [1] ("TintBlend") * TintVariation
+    tint2 = g.node(unreal.MaterialExpressionVectorParameter, -1750, -760,
+                   parameter_name="BaseColorTint2", default_value=unreal.LinearColor(0.5, 0.5, 0.5, 1.0), group="Surface")
+    tint_blend = g.scalar("TintBlend", 0.0, -1750, -860, group="Surface")
+    try:
+        tint_blend.set_editor_property("use_custom_primitive_data", True)
+        tint_blend.set_editor_property("primitive_data_index", 1)
+    except Exception:  # noqa: BLE001
+        pass
+    tint_variation = g.scalar("TintVariation", 0.0, -1750, -940, group="Surface")
+    tint_alpha = g.node(unreal.MaterialExpressionMultiply, -1600, -880)
+    g.link(tint_blend, "", tint_alpha, "A")
+    g.link(tint_variation, "", tint_alpha, "B")
+    tint_final = g.node(unreal.MaterialExpressionLinearInterpolate, -1550, -650)
+    g.link(tint, "", tint_final, "A")
+    g.link(tint2, "", tint_final, "B")
+    g.link(tint_alpha, "", tint_final, "Alpha")
     base_color = g.node(unreal.MaterialExpressionMultiply, -1450, -450)
     g.link(base_tex, "RGB", base_color, "A")
-    g.link(tint, "", base_color, "B")
+    g.link(tint_final, "", base_color, "B")
 
     roughness_scale = g.scalar("Roughness", 0.7, -1750, 200)
     roughness = g.node(unreal.MaterialExpressionMultiply, -1450, 100)
@@ -451,6 +469,136 @@ def build_master_material(mpc):
     return material
 
 
+WINDOW_MASTER = vb.ROOT + "/Materials/Master/M_VB_Window"
+
+# Interior Mapping (J. van Dongen): Strahl durch einen virtuellen Raum hinter der Scheibe.
+# Tangentenraum: UV (Kanal 1) laeuft 0..1 ueber die ganze Scheibe. Raumfarben, Jalousien und
+# Beleuchtung werden je Fenster aus einem Zufallswert abgeleitet; nachts brennt Licht abhaengig
+# von der Uhrzeit (Abends viele, spaet nachts wenige Fenster).
+WINDOW_HLSL = r"""
+float2 p = frac(UV) * 2.0 - 1.0;
+p.y *= FlipY;
+float3 v = normalize(ViewTS);
+float3 dir = normalize(float3(-v.x, -v.y * FlipY, -max(abs(v.z), 0.05)));
+dir += float3(1e-5, 1e-5, 1e-5) * step(abs(dir), float3(1e-5, 1e-5, 1e-5));
+float3 inv = 1.0 / dir;
+float3 pos = float3(p, 0.0);
+float tx = ((dir.x > 0.0 ? 1.0 : -1.0) - pos.x) * inv.x;
+float ty = ((dir.y > 0.0 ? 1.0 : -1.0) - pos.y) * inv.y;
+float tz = (-2.0 * Depth - pos.z) * inv.z;
+float t = min(min(tx, ty), tz);
+float3 hit = pos + dir * t;
+
+float seed = Rand + frac(sin(dot(floor(LocalPos / 150.0), float3(12.9898, 78.233, 37.719))) * 43758.5453);
+float h1 = frac(sin(seed * 91.345 + 3.1) * 43758.5453);
+float h2 = frac(sin(seed * 17.123 + 1.7) * 24634.6345);
+float h3 = frac(sin(seed * 53.770 + 9.2) * 13758.9370);
+
+float3 wallColor = lerp(float3(0.62, 0.56, 0.47), float3(0.42, 0.47, 0.52), h1);
+float3 floorColor = lerp(float3(0.26, 0.17, 0.10), float3(0.33, 0.32, 0.31), h2);
+float3 ceilingColor = float3(0.78, 0.78, 0.76);
+float3 color = wallColor * 0.85;
+if (t == ty) { color = (hit.y < 0.0) ? floorColor : ceilingColor; }
+else if (t == tz) { color = wallColor; }
+// Moebel-Silhouette an der Rueckwand
+if (t == tz && hit.y < -0.35 && abs(hit.x - (h3 - 0.5)) < 0.45) { color *= 0.35; }
+color *= saturate(1.0 + hit.z / (2.0 * Depth) * 0.55);
+
+float hour = TimeOfDay * 24.0;
+float occupancy = (hour > 17.0 && hour < 23.5) ? 0.75 : ((hour >= 23.5 || hour < 5.5) ? 0.12 : ((hour < 8.5) ? 0.45 : 0.25));
+float open = (hour > 7.5 && hour < 21.0) ? 1.0 : 0.15;
+occupancy = lerp(occupancy, open, IsShop);
+float lightOn = step(h2, occupancy);
+float3 warm = lerp(float3(1.0, 0.76, 0.48), float3(0.86, 0.92, 1.0), step(0.72, h1));
+float dayLum = lerp(DayLuminance, DayLuminance * 3.0, IsShop * lightOn);
+float nightLum = NightLuminance * lightOn * (1.0 + IsShop * 2.0);
+float lum = lerp(dayLum, nightLum, Night);
+float3 interior = color * lerp(float3(1.0, 1.0, 1.0), warm, Night * lightOn) * lum;
+
+// Jalousie (nicht bei Laeden)
+float blindHeight = h3 * 0.9 * (1.0 - IsShop);
+float blind = step(1.0 - blindHeight, p.y * 0.5 + 0.5);
+float3 blindColor = lerp(float3(0.82, 0.8, 0.72), float3(0.35, 0.35, 0.37), step(0.5, h1)) * lum * 0.5;
+float3 result = lerp(interior, blindColor, blind);
+
+// Fresnel: unter flachem Blickwinkel dominiert die Spiegelung der Scheibe
+float fresnel = 0.04 + 0.96 * pow(1.0 - saturate(abs(v.z)), 5.0);
+return result * (1.0 - fresnel);
+"""
+
+
+def build_window_material(mpc):
+    """M_VB_Window: spiegelnde Scheibe + Interior Mapping als Emissive (Tag gedaempft, nachts beleuchtet)."""
+    material, created = vb.load_or_create(WINDOW_MASTER, unreal.Material, unreal.MaterialFactoryNew())
+    if not created:
+        MEL.delete_all_material_expressions(material)
+    for usage_name in ("MATL_NANITE", "MATL_INSTANCED_STATIC_MESHES"):
+        usage = getattr(unreal.MaterialUsage, usage_name, None)
+        if usage is not None:
+            try:
+                MEL.set_material_usage(material, usage)
+            except Exception:  # noqa: BLE001
+                pass
+
+    g = MaterialGraph(material)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, -1200, 0, coordinate_index=1)
+    camera = g.node(unreal.MaterialExpressionCameraVectorWS, -1400, 150)
+    to_tangent = g.node(unreal.MaterialExpressionTransform, -1200, 150)
+    try:
+        to_tangent.set_editor_property("transform_source_type", unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_WORLD)
+        to_tangent.set_editor_property("transform_type", unreal.MaterialVectorCoordTransform.TRANSFORM_TANGENT)
+    except Exception as exc:  # noqa: BLE001
+        vb.warn("Transform-Knoten: %s" % exc)
+    g.link(camera, "", to_tangent, "")
+    rand = g.node(unreal.MaterialExpressionPerInstanceRandom, -1200, 300)
+    # Lokale Position (float, keine Large-World-Coordinates im Custom-Node) + Zufall je Instanz
+    local_class = getattr(unreal, "MaterialExpressionLocalPosition", None)
+    if local_class is not None:
+        local = g.node(local_class, -1200, 380)
+    else:
+        local = g.node(unreal.MaterialExpressionConstant3Vector, -1200, 380, constant=unreal.LinearColor(0, 0, 0, 0))
+    night = g.mpc(mpc, "NightFactor", -1200, 460)
+    time = g.mpc(mpc, "TimeOfDay01", -1200, 540)
+    depth = g.scalar("RoomDepth", 1.0, -1200, 620, group="Interior")
+    day_lum = g.scalar("DayLuminance", 350.0, -1200, 700, group="Interior")
+    night_lum = g.scalar("NightLuminance", 18.0, -1200, 780, group="Interior")
+    is_shop = g.scalar("IsShop", 0.0, -1200, 860, group="Interior")
+    flip_y = g.scalar("FlipY", 1.0, -1200, 940, group="Interior")
+
+    custom = g.node(unreal.MaterialExpressionCustom, -800, 300)
+    custom.set_editor_property("code", WINDOW_HLSL)
+    custom.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
+    custom.set_editor_property("description", "VB Interior Mapping")
+    names = ["UV", "ViewTS", "Rand", "LocalPos", "Night", "TimeOfDay", "Depth", "DayLuminance", "NightLuminance", "IsShop", "FlipY"]
+    custom.set_editor_property("inputs", [unreal.CustomInput(input_name=name) for name in names])
+    for name, source in zip(names, [uv, to_tangent, rand, local, night, time, depth, day_lum, night_lum, is_shop, flip_y]):
+        g.link(source, "", custom, name)
+
+    glass_color = g.node(unreal.MaterialExpressionVectorParameter, -500, 0, parameter_name="GlassColor",
+                         default_value=unreal.LinearColor(0.02, 0.025, 0.028, 1.0), group="Glass")
+    glass_rough = g.scalar("GlassRoughness", 0.04, -500, 120, group="Glass")
+    g.output(glass_color, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    g.output(glass_rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    g.output(custom, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+
+    MEL.recompile_material(material)
+    vb.save_asset(material)
+    if g.failed_links:
+        vb.warn("M_VB_Window: %d Verbindungen fehlgeschlagen." % g.failed_links)
+
+    instances = {}
+    for name, params in (("Window", {}), ("WindowShop", {"IsShop": 1.0, "RoomDepth": 1.6, "DayLuminance": 500.0})):
+        mi, _ = vb.load_or_create(vb.shared_material_path(name), unreal.MaterialInstanceConstant,
+                                  unreal.MaterialInstanceConstantFactoryNew())
+        MEL.set_material_instance_parent(mi, material)
+        for key, value in params.items():
+            MEL.set_material_instance_scalar_parameter_value(mi, key, value)
+        MEL.update_material_instance(mi)
+        vb.save_asset(mi)
+        instances[name] = mi
+    return instances
+
+
 def create_material_instances(master):
     instances = {}
     folder = vb.ROOT + "/Materials/Instances"
@@ -565,6 +713,9 @@ KIT = {
     "signal": KIT_ROOT + "/Props/SM_VB_TrafficLight_A/SM_VB_TrafficLight_A",
     "signal_lens": KIT_ROOT + "/Props/SM_VB_SignalLens/SM_VB_SignalLens",
 }
+KIT["intersection"] = KIT_ROOT + "/Roads/SM_VB_Intersection_4Way/SM_VB_Intersection_4Way"
+ROOF_TILE = KIT_ROOT + "/Buildings/SM_VB_Roof_Tile_3m/SM_VB_Roof_Tile_3m"
+ROOF_PROPS = [KIT_ROOT + "/Props/SM_VB_Roof_%s/SM_VB_Roof_%s" % (n, n) for n in ("AC", "Vent", "Antenna", "StairHouse")]
 BUILDING_LINE = 978.0  # Gehweg-Hinterkante (cm von der Strassenmitte)
 
 
@@ -601,6 +752,19 @@ def build_kit_street(actors, kit, length):
     crosswalk_index = int(length * 0.5 // 1000)  # Fahrbahnstueck bei X = 0 .. 10 m
     builder.set_editor_property("crosswalk_piece_index", crosswalk_index)
 
+    builder.set_editor_property("props", street_prop_rules(kit))
+    vb.tag_actor(builder, "Street_Main", "Street", prototype=False)
+
+    # Ampeln am Zebrastreifen (Welt-X 0..10 m): je Fahrtrichtung rechts, vor der Haltelinie
+    if kit["signal"] and kit["signal_lens"]:
+        crossing_x = origin_x + crosswalk_index * 1000.0
+        for label, x, y, yaw in (("TrafficLight_East", crossing_x + 100, 700, 180.0),
+                                 ("TrafficLight_West", crossing_x + 900, -700, 0.0)):
+            spawn_signal(actors, kit, label, unreal.Vector(x, y, 15), yaw, 0.0)
+    return builder
+
+
+def street_prop_rules(kit):
     rules = []
     if kit["manhole"]:
         rules.append(prop_rule(kit["manhole"], 3500, 1500, 280, jitter=500, probability=0.8, on_road=True))
@@ -615,20 +779,190 @@ def build_kit_street(actors, kit, length):
     if kit["sign"]:
         # Schilder schauen dem Verkehr entgegen
         rules.append(prop_rule(kit["sign"], 4000, 2300, 670, yaw=-90.0, probability=0.8))
-    builder.set_editor_property("props", rules)
-    vb.tag_actor(builder, "Street_Main", "Street", prototype=False)
+    return rules
 
-    # Ampeln am Zebrastreifen (Welt-X 0..10 m): je Fahrtrichtung rechts, vor der Haltelinie
-    if kit["signal"] and kit["signal_lens"]:
-        crossing_x = origin_x + crosswalk_index * 1000.0
-        for label, x, y, yaw in (("TrafficLight_East", crossing_x + 100, 700, 180.0),
-                                 ("TrafficLight_West", crossing_x + 900, -700, 0.0)):
-            signal = actors.spawn_actor_from_class(unreal.VBTrafficLight, unreal.Vector(x, y, 15),
-                                                   unreal.Rotator(roll=0.0, pitch=0.0, yaw=yaw))
-            signal.set_editor_property("model", kit["signal"])
-            signal.set_editor_property("lens_model", kit["signal_lens"])
-            vb.tag_actor(signal, label, "Street/TrafficLights", prototype=False)
+
+def spawn_signal(actors, kit, label, location, yaw, cycle_offset):
+    signal = actors.spawn_actor_from_class(unreal.VBTrafficLight, location, unreal.Rotator(roll=0.0, pitch=0.0, yaw=yaw))
+    signal.set_editor_property("model", kit["signal"])
+    signal.set_editor_property("lens_model", kit["signal_lens"])
+    signal.set_editor_property("cycle_offset", cycle_offset)
+    vb.tag_actor(signal, label, "Street/TrafficLights", prototype=False)
+    return signal
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Stadtblock (3 x 3 Bloecke, Mittelblock mit Blockrandbebauung und Innenhof)
+# ---------------------------------------------------------------------------
+BLOCK_W, BLOCK_D = 6000.0, 3000.0            # Bauflucht-Rechteck eines Blocks (cm)
+STREET_X = BLOCK_W / 2 + BUILDING_LINE      # Mittellinie der Nord-Sued-Strassen (x = +/- 3978)
+STREET_Y = BLOCK_D / 2 + BUILDING_LINE      # Mittellinie der Ost-West-Strassen (y = +/- 2478)
+PITCH_X, PITCH_Y = 2 * STREET_X, 2 * STREET_Y
+SIGNAL_CYCLE_OFFSET_CROSS = 18.5            # Querrichtung gegenphasig (1 s Alles-Rot)
+
+
+STYLE_WEIGHTS = {"A": 9, "B": 7, "C": 4}   # Altbau praegt die Kuestenstadt, moderne Bauten als Akzent
+
+
+def pick_style(rng, styles):
+    pool = [letter for letter in styles for _ in range(STYLE_WEIGHTS.get(letter, 1))]
+    return rng.choice(pool)
+
+
+def facade_style(letter):
+    base = KIT_ROOT + "/Buildings/SM_VB_Fac%s_%%s/SM_VB_Fac%s_%%s" % (letter, letter)
+    variant = {"A": "Balcony", "B": "WindowPair", "C": "Panel"}[letter]
+    style = unreal.VBFacadeStyle()
+    for prop, kind in (("window", "Window"), ("variant", variant), ("plain", "Plain"), ("ground_shop", "GroundShop"),
+                       ("ground_door", "GroundDoor"), ("ground_window", "GroundWindow"), ("ground_plain", "GroundPlain"),
+                       ("cornice", "Cornice"), ("corner_ground", "CornerGround"), ("corner_upper", "CornerUpper"),
+                       ("corner_cornice", "CornerCornice")):
+        mesh = load_kit(base % (kind, kind))
+        if mesh is None:
+            return None
+        style.set_editor_property(prop, mesh)
+    return style
+
+
+def spawn_building(actors, label, folder, origin, yaw, style, bays_x, bays_y, floors, modes, seed, roof, roof_props,
+                   shop_ratio=0.7):
+    building = actors.spawn_actor_from_class(unreal.VBBuildingBuilder, origin, unreal.Rotator(roll=0.0, pitch=0.0, yaw=yaw))
+    building.set_editor_property("style", style)
+    building.set_editor_property("bays_x", bays_x)
+    building.set_editor_property("bays_y", bays_y)
+    building.set_editor_property("floors", floors)
+    mode = unreal.VBFacadeMode
+    for prop, value in zip(("front", "right", "back", "left"), modes):
+        building.set_editor_property(prop, getattr(mode, value.upper()))
+    building.set_editor_property("seed", seed)
+    building.set_editor_property("shop_ratio", shop_ratio)
+    building.set_editor_property("roof_tile", roof)
+    building.set_editor_property("roof_props", roof_props)
+    vb.tag_actor(building, label, folder, prototype=False)
+    return building
+
+
+def build_block(actors, center, styles, roof, roof_props, rng, label, detailed):
+    """Blockrandbebauung: Nord- und Suedzeile ueber die volle Breite, Ost-/Westzeile dazwischen.
+    detailed=False: nur zwei Zeilen (Nachbarbloecke, guenstiger)."""
+    cx, cy = center
+    half_w, half_d = BLOCK_W / 2, BLOCK_D / 2
+    bay = 300.0
+    row_depth = 3 if detailed else 5
+    count = 0
+
+    def row(y_edge, outward_north, widths):
+        nonlocal count
+        x = cx - half_w
+        for index, bays in enumerate(widths):
+            first, last = index == 0, index == len(widths) - 1
+            letter = pick_style(rng, styles)
+            floors = rng.randint(4, 7) if detailed else rng.randint(4, 8)
+            if outward_north:   # Front zeigt nach +Y -> Yaw 180, Ursprung am oestlichen Ende
+                origin = unreal.Vector(x + bays * bay, y_edge, 0)
+                yaw, left_open, right_open = 180.0, last, first
+            else:               # Front zeigt nach -Y -> Yaw 0, Ursprung am westlichen Ende
+                origin = unreal.Vector(x, y_edge, 0)
+                yaw, left_open, right_open = 0.0, first, last
+            modes = ("Full", "Full" if right_open else "Plain", "Full" if detailed else "Plain", "Full" if left_open else "Plain")
+            spawn_building(actors, "%s_B%02d" % (label, count), "City/%s" % label, origin, yaw, styles[letter], bays,
+                           row_depth, floors, modes, rng.randint(1, 99999), roof, roof_props)
+            count += 1
+            x += bays * bay
+
+    splits = [[5, 6, 4, 5], [4, 5, 6, 5], [6, 4, 5, 5], [5, 5, 5, 5], [7, 6, 7], [3, 5, 4, 4, 4]]
+    row(cy - half_d, False, rng.choice(splits))
+    row(cy + half_d, True, rng.choice(splits))
+    if detailed:
+        # Ost- und Westzeile zwischen Nord- und Suedzeile (Laenge 4 Achsen, Tiefe 3 Achsen), Stirnseiten = Brandwaende
+        inner = int((BLOCK_D - 2 * row_depth * bay) / bay)
+        for east in (True, False):
+            letter = pick_style(rng, styles)
+            if east:
+                origin, yaw = unreal.Vector(cx + half_w, cy - inner * bay / 2, 0), 90.0
+            else:
+                origin, yaw = unreal.Vector(cx - half_w, cy + inner * bay / 2, 0), 270.0
+            spawn_building(actors, "%s_B%02d" % (label, count), "City/%s" % label, origin, yaw, styles[letter], inner,
+                           row_depth, rng.randint(4, 6), ("Full", "Plain", "Full", "Plain"), rng.randint(1, 99999), roof,
+                           roof_props)
+            count += 1
+    return count
+
+
+def spawn_street(actors, kit, label, origin, yaw, length):
+    builder = actors.spawn_actor_from_class(unreal.VBStreetBuilder, origin, unreal.Rotator(roll=0.0, pitch=0.0, yaw=yaw))
+    builder.set_editor_property("length", length)
+    builder.set_editor_property("road_mesh", kit["road"])
+    builder.set_editor_property("curb_mesh", kit["curb"])
+    builder.set_editor_property("sidewalk_mesh", kit["sidewalk"])
+    builder.set_editor_property("crosswalk_piece_index", -1)
+    builder.set_editor_property("seed", abs(hash(label)) % 10000)
+    builder.set_editor_property("props", street_prop_rules(kit))
+    vb.tag_actor(builder, label, "Street", prototype=False)
     return builder
+
+
+def street_lamps(actors, lamp_model, origin, yaw, length, label, spacing=2500.0):
+    """Laternen beidseitig versetzt, in Strassen-Koordinaten (x entlang, y quer) -> Welt."""
+    count = 0
+    rad = math.radians(yaw)
+    fx, fy = math.cos(rad), math.sin(rad)
+    for side in (-1, 1):
+        x = spacing * (0.3 if side > 0 else 0.8)
+        while x < length - 100:
+            lx, ly = x, side * 700.0
+            world = unreal.Vector(origin.x + fx * lx - fy * ly, origin.y + fy * lx + fx * ly, 15)
+            lamp = actors.spawn_actor_from_class(unreal.VBStreetLight, world,
+                                                 unreal.Rotator(roll=0.0, pitch=0.0, yaw=yaw + (-90.0 if side > 0 else 90.0)))
+            if lamp_model is not None:
+                lamp.set_editor_property("model", lamp_model)
+            vb.tag_actor(lamp, "%s_Lamp%02d" % (label, count), "Street/StreetLights", prototype=lamp_model is None)
+            count += 1
+            x += spacing
+    return count
+
+
+def build_city_block(actors, kit, styles, roof, roof_props):
+    rng = random.Random(42)
+    lamp_model = load_kit(STREETLIGHT_MODEL)
+    counts = {"buildings": 0, "streets": 0, "lamps": 0, "signals": 0}
+
+    # Bloecke: Mitte detailliert, 8 Nachbarn
+    for i in (-1, 0, 1):
+        for j in (-1, 0, 1):
+            detailed = (i == 0 and j == 0)
+            counts["buildings"] += build_block(actors, (i * PITCH_X, j * PITCH_Y), styles, roof, roof_props, rng,
+                                               "Block_%d_%d" % (i + 1, j + 1), detailed)
+
+    # Ost-West-Strassen (y = +/- STREET_Y), je 3 Abschnitte zwischen den Kreuzungen
+    segments = []
+    for sy in (-1, 1):
+        for i in (-1, 0, 1):
+            segments.append(("Street_EW_%d_%d" % (sy + 1, i + 1), unreal.Vector(i * PITCH_X - BLOCK_W / 2, sy * STREET_Y, 0), 0.0, BLOCK_W))
+    for sx in (-1, 1):
+        for j in (-1, 0, 1):
+            segments.append(("Street_NS_%d_%d" % (sx + 1, j + 1), unreal.Vector(sx * STREET_X, j * PITCH_Y - BLOCK_D / 2, 0), 90.0, BLOCK_D))
+    for label, origin, yaw, length in segments:
+        spawn_street(actors, kit, label, origin, yaw, length)
+        counts["lamps"] += street_lamps(actors, lamp_model, origin, yaw, length, label)
+        counts["streets"] += 1
+
+    # Kreuzungen + Ampeln (je Zufahrt rechts vor der Haltelinie, Querrichtung gegenphasig)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            center = unreal.Vector(sx * STREET_X, sy * STREET_Y, 0)
+            crossing = actors.spawn_actor_from_object(kit["intersection"], center)
+            vb.tag_actor(crossing, "Intersection_%d_%d" % (sx + 1, sy + 1), "Street/Intersections", prototype=False)
+            if kit["signal"] and kit["signal_lens"]:
+                for arm in range(4):
+                    angle = math.radians(90.0 * arm)
+                    lx, ly = 920.0, -700.0          # Arm-Koordinaten: Zufahrt kommt aus +X, rechte Seite = -Y
+                    world = unreal.Vector(center.x + math.cos(angle) * lx - math.sin(angle) * ly,
+                                          center.y + math.sin(angle) * lx + math.cos(angle) * ly, 15)
+                    offset = 0.0 if arm % 2 == 0 else SIGNAL_CYCLE_OFFSET_CROSS
+                    spawn_signal(actors, kit, "Signal_%d_%d_%d" % (sx + 1, sy + 1, arm), world, 90.0 * arm, offset)
+                    counts["signals"] += 1
+    return counts
 
 
 def build_dev_map(instances):
@@ -654,8 +988,27 @@ def build_dev_map(instances):
     # --- Boden ------------------------------------------------------------------
     box("Ground", "Dev/Greybox/Ground", (0, 0, -50), (40000, 40000, 100), instances["MI_VB_Dev_Ground"])
 
-    # --- Strasse: finales Kit (Phase 2) oder Graubox-Fallback --------------------
+    # --- Phase 3: kompletter Stadtblock, falls Fassaden- und Kreuzungs-Kit importiert sind ---
     kit = {key: load_kit(path) for key, path in KIT.items()}
+    styles = {letter: facade_style(letter) for letter in ("A", "B", "C")}
+    styles = {k: v for k, v in styles.items() if v is not None}
+    roof = load_kit(ROOF_TILE)
+    if styles and roof and kit["intersection"] and kit["road"]:
+        roof_props = [p for p in (load_kit(path) for path in ROOF_PROPS) if p is not None]
+        counts = build_city_block(actors, kit, styles, roof, roof_props)
+        # Kalibrierung + Tuer im Innenhof, Spielerstart auf dem suedlichen Gehweg
+        for index, name in enumerate(["MI_VB_Calib_Grey18", "MI_VB_Calib_White80", "MI_VB_Calib_Black04", "MI_VB_Calib_Chrome"]):
+            ball = actors.spawn_actor_from_object(sphere, unreal.Vector(-200 + index * 120, 0, 50))
+            ball.get_component_by_class(unreal.StaticMeshComponent).set_material(0, instances[name])
+            vb.tag_actor(ball, "Calibration_" + name.replace("MI_VB_Calib_", ""), "Dev/Calibration")
+        start = actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(-1500, -STREET_Y + 800, 120),
+                                              unreal.Rotator(roll=0.0, pitch=0.0, yaw=0.0))
+        vb.tag_actor(start, "PlayerStart", "Gameplay", prototype=False)
+        unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
+        vb.log("Stadtblock: %(buildings)d Gebaeude, %(streets)d Strassen, %(lamps)d Laternen, %(signals)d Ampeln" % counts)
+        return counts["buildings"], counts["lamps"]
+
+    # --- Phase 2: Strasse aus dem Kit oder Graubox-Fallback --------------------
     use_kit = kit["road"] is not None and kit["curb"] is not None and kit["sidewalk"] is not None
     street_length = 12000.0 if use_kit else 30000.0
     if use_kit:
@@ -750,6 +1103,7 @@ def run():
         vb_import.import_surfaces(textures_only=True)  # Regenkraeusel-Textur wird vom Master-Material gebraucht
         master = build_master_material(mpc)
         instances = create_material_instances(master)
+        build_window_material(mpc)
 
         task.enter_progress_frame(1, "Blender-Assets importieren (SourceAssets/Export)")
         imported = vb_import.run(show_dialog=False)

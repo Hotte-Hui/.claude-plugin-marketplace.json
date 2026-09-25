@@ -120,6 +120,8 @@ def texture_base_name(asset_name):
 
 
 SURFACE_TEXTURES = vb.ROOT + "/Textures/Surfaces"
+KIT_MATERIALS = vb.ROOT + "/Materials/Kit"
+_kit_materials_this_run = set()
 SURFACE_MATERIALS = vb.ROOT + "/Materials/Surfaces"
 
 
@@ -155,7 +157,13 @@ def create_material_instance(target_folder, name, textures, params):
 
     if "_D" in textures:
         mel.set_material_instance_texture_parameter_value(mi, "BaseColorMap", textures["_D"])
-        mel.set_material_instance_vector_parameter_value(mi, "BaseColorTint", unreal.LinearColor(1, 1, 1, 1))
+        tint = params.get("tint", [1.0, 1.0, 1.0])
+        mel.set_material_instance_vector_parameter_value(mi, "BaseColorTint", unreal.LinearColor(tint[0], tint[1], tint[2], 1))
+        if "tint2" in params:
+            # Zweiter Grundton: Gebaeude mischen per Custom Primitive Data [1] (TintBlend) dazwischen
+            tint2 = params["tint2"]
+            mel.set_material_instance_vector_parameter_value(mi, "BaseColorTint2", unreal.LinearColor(tint2[0], tint2[1], tint2[2], 1))
+            mel.set_material_instance_scalar_parameter_value(mi, "TintVariation", 1.0)
     else:
         color = params.get("base_color", [0.5, 0.5, 0.5])
         mel.set_material_instance_vector_parameter_value(mi, "BaseColorTint", unreal.LinearColor(color[0], color[1], color[2], 1))
@@ -271,6 +279,13 @@ def import_one(category, asset_name, asset_dir, fbx):
     for index, slot in enumerate(slots):
         slot_name = str(slot.get_editor_property("material_slot_name"))
         slot_meta = meta.get("slots", {}).get(slot_name, {})
+        shared = slot_meta.get("shared_material")
+        if shared:
+            shared_mi = unreal.load_asset(vb.shared_material_path(shared))
+            if shared_mi is not None:
+                mesh.set_material(index, shared_mi)
+                continue
+            vb.warn("%s: gemeinsames Material '%s' fehlt - zuerst 'Projekt einrichten' ausfuehren." % (asset_name, shared))
         surface = slot_meta.get("surface")
         if surface:
             surface_mi = unreal.load_asset(surface_material_path(surface))
@@ -280,6 +295,17 @@ def import_one(category, asset_name, asset_dir, fbx):
             vb.warn("%s: Oberflaeche '%s' fehlt - Slot bekommt eigenes Material." % (asset_name, surface))
         slot_textures = import_textures(asset_dir, target, base, slot_name) if len(slots) > 1 else {}
         textures = slot_textures or shared_textures
+        if not textures and slot_meta:
+            # Einfarbiges Kit-Material (z. B. PaintWindowWhite): einmal pro Import-Lauf anlegen, von allen Assets teilen
+            kit_path = "%s/MI_VB_%s" % (KIT_MATERIALS, slot_name)
+            if kit_path not in _kit_materials_this_run:
+                folder_asset, kit_name = vb.split_path(kit_path)
+                params = dict(DEFAULT_META)
+                params.update(slot_meta)
+                create_material_instance(folder_asset, kit_name, {}, params)
+                _kit_materials_this_run.add(kit_path)
+            mesh.set_material(index, unreal.load_asset(kit_path))
+            continue
         params = dict(meta)
         params.update(meta.get("slots", {}).get(slot_name, {}))
         mi_name = "MI_%s_%s" % (base, slot_name) if len(slots) > 1 else "MI_%s" % base
@@ -307,6 +333,7 @@ def run(show_dialog=True):
         return []
 
     results, failures = [], []
+    _kit_materials_this_run.clear()
     try:
         results.extend(import_surfaces())
     except Exception as exc:  # noqa: BLE001

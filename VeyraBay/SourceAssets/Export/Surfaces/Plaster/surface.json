@@ -1,0 +1,18 @@
+{
+  "surface": "Plaster",
+  "tile_meters": 1.5,
+  "uv_tiling": 0.6666666666666666,
+  "porosity": 0.55,
+  "wetness_response": 0.8,
+  "puddle_response": 0.0,
+  "tint": [
+    1.0,
+    0.86,
+    0.66
+  ],
+  "tint2": [
+    0.82,
+    0.88,
+    0.9
+  ]
+}

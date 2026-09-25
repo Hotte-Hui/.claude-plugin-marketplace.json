@@ -60,6 +60,20 @@ Dev/         Test-Inhalte, werden nicht ausgeliefert
 - Kit-Teile: Pivot am Anfang (X = 0), kacheln entlang +X; Straßenquerschnitt siehe `Tools/Blender/assets/vb_asset_streetkit.py`.
 - Wegen `materials.clear()` in Blender immer `vb_blender_lib.assign_materials()` benutzen (erhält die Flächen-Materialindizes).
 
+## Koordinaten Blender → Unreal
+
+Der FBX-Import von Unreal negiert Y (Blender +Y → Unreal −Y; darum schaut das Mannequin nach +Y).
+Kit-Teile, bei denen die Seite zählt (Bordsteine, Fahrspuren, Fassaden, Kreuzungen), werden in **Unreal-Koordinaten**
+modelliert und vor dem Export mit `vb_blender_lib.mirror_to_unreal()` gespiegelt. Rechtsverkehr: Fahrtrichtung +X
+fährt auf der +Y-Seite. Fassadenmodule: Außenseite = −Y, Wand nach +Y, Modulbreite 3 m, EG 4,5 m, OG 3 m.
+
+## Custom Primitive Data
+
+| Index | Name im Material | Gesetzt von |
+|---|---|---|
+| 0 | `LightOn` | `UVBNightLightComponent`, `AVBTrafficLight` |
+| 1 | `TintBlend` | `AVBBuildingBuilder` (Putzfarbton je Gebäude) |
+
 ## Actor-Tags
 
 - `VB_Prototype` – Platzhalter, muss vor der Abnahme der Phase ersetzt werden.

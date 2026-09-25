@@ -1,0 +1,39 @@
+{
+  "category": "Props",
+  "triangles": 395,
+  "nanite": true,
+  "collision": "auto",
+  "puddle_response": 0.0,
+  "slots": {
+    "FacadePlaster": {
+      "surface": "Plaster",
+      "base_color": [
+        0.8,
+        0.72,
+        0.6
+      ],
+      "roughness": 0.85,
+      "metallic": 0.0
+    },
+    "FacadeConcrete": {
+      "surface": "Concrete",
+      "base_color": [
+        0.36,
+        0.35,
+        0.33
+      ],
+      "roughness": 0.85,
+      "metallic": 0.0
+    },
+    "PaintSteelDark": {
+      "base_color": [
+        0.04,
+        0.045,
+        0.05
+      ],
+      "roughness": 0.4,
+      "metallic": 0.6,
+      "porosity": 0.0
+    }
+  }
+}

@@ -50,6 +50,7 @@ OBJECT_KEYS = {
 }
 MATERIAL_KEYS = {
     "vb_surface": "surface",
+    "vb_shared_material": "shared_material",
     "vb_base_color": "base_color",
     "vb_roughness": "roughness",
     "vb_metallic": "metallic",

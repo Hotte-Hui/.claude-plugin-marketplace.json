@@ -1,7 +1,7 @@
 # Veyra Bay – Open-World Vertical Slice (Unreal Engine 5.8)
 
 Eine fiktive Küstenstadt als technisch hochwertiger Open-World-Prototyp.
-**Aktueller Stand: Phase 1 (technisches Grundgerüst) + Phase 2 (hochwertige Straße aus eigenem Blender-Kit).**
+**Aktueller Stand: Phasen 1–3 umgesetzt: technisches Grundgerüst, hochwertige Straße, kompletter Stadtblock (3 × 3 Blöcke).**
 
 | Dokument | Inhalt |
 |---|---|
@@ -101,9 +101,18 @@ Danach **Play** (Alt+P). Beim ersten Start werden Shader kompiliert – das kann
 - [ ] F5 bis „HeavyRain“: in den Pfützen erscheinen animierte Tropfenringe
 - [ ] Die Fahrbahn wiederholt sich nicht sichtbar (großflächige Helligkeitsvariation)
 
+### 7c. Phase-3-Abnahme (Stadtblock)
+
+- [ ] Nach „1. Projekt einrichten“ steht ein 3 × 3-Stadtraster; Start auf dem Gehweg der südlichen Straße
+- [ ] Drei Baustile (Altbau mit Balkonen, Klinker-Loft, Modern), jedes Putzgebäude hat einen eigenen Farbton
+- [ ] Hinter den Fenstern sind Räume mit Tiefe, Jalousien und Möbeln zu sehen (Parallaxe beim Vorbeigehen)
+- [ ] F7 bis zum Abend: nach und nach gehen Fensterlichter an, Läden sind beleuchtet; spät nachts nur noch wenige Fenster
+- [ ] Ampeln an den 4 Kreuzungen: Längs- und Querrichtung schalten gegenläufig
+- [ ] Brandwände über niedrigeren Nachbarn, Dachaufbauten sichtbar
+
 Bitte schick mir **Screenshots** (Tag, Nacht, Regen) und bei Problemen den **Output Log** (Fenster → Output Log).
 
-> **Ehrlicher Hinweis:** Die Gebäude der Testkarte sind noch bewusst einfache Blöcke (mit `VB_Prototype` markiert) – sie dienen nur zum Prüfen von Licht, Schatten, Nässe und Performance. Ab Phase 2/3 ersetzen echte Blender-Assets sie Stück für Stück. Die Straßenlaterne `SM_VB_StreetLight_A` ist bereits das erste finale Asset.
+> **Ehrlicher Hinweis:** Alle Inhalte sind selbst erzeugt (Blender, prozedural) und in Blender gerendert geprüft. In Unreal wurde bisher nichts kompiliert oder getestet – das kann nur auf deinem PC passieren. Rechne beim ersten Kompilieren mit einzelnen Fehlern, die ich dann behebe.
 
 ## 8. Blender-Pipeline
 
@@ -119,6 +128,9 @@ blender -b --factory-startup --python Tools/Blender/surfaces/vb_surfaces.py -- -
 blender -b --factory-startup --python Tools/Blender/surfaces/vb_rain_ripples.py -- --out SourceAssets/Export
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_streetkit.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_StreetKit.blend
 blender -b --factory-startup --python Tools/Blender/assets/vb_asset_streetlight.py -- --out SourceAssets/Export --blend SourceAssets/Blender/SM_VB_StreetLight_A.blend
+blender -b --factory-startup --python Tools/Blender/assets/vb_asset_facades.py -- --out SourceAssets/Export --blend SourceAssets/Blender/VB_Facades.blend
+# Vorschau des Stadtblocks (gleiche Logik wie in Unreal):
+blender -b --factory-startup --python Tools/Blender/assets/vb_preview_block.py -- --out block.png --view street --textures SourceAssets/Export
 ```
 
 Details: [Docs/CONVENTIONS.md](Docs/CONVENTIONS.md).

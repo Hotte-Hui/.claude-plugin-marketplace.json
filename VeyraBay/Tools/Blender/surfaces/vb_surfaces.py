@@ -109,6 +109,79 @@ def weathered_wood(s):
     return {"color": color, "roughness": roughness, "height": height, "ao": s.value(grain, 0.15, 0.85), "metallic": 0.0}
 
 
+def brick(s):
+    """Klinker im Laeuferverband: 24 x 7.1 cm, 1-cm-Fugen -> 4 Steine x 12 Schichten pro Meter (kachelbar)."""
+    u, v = s.uv(0), s.uv(1)
+    rows = s.math("MULTIPLY", v, 12.0)
+    row = s.math("FLOOR", rows)
+    offset = s.math("MULTIPLY", s.math("MODULO", row, 2.0), 0.5)
+    bricks_u = s.math("ADD", s.math("MULTIPLY", u, 4.0), offset)
+    column = s.math("MODULO", s.math("FLOOR", bricks_u), 4.0)
+    fu, fv = s.math("FRACT", bricks_u), s.math("FRACT", rows)
+    # Fugenmaske (1 cm), leicht weich
+    joint_u = s.math("MAXIMUM", s.math("SUBTRACT", 1.0, s.smoothstep(0.0, 0.045, fu)), s.smoothstep(0.955, 1.0, fu))
+    joint_v = s.math("MAXIMUM", s.math("SUBTRACT", 1.0, s.smoothstep(0.0, 0.14, fv)), s.smoothstep(0.93, 1.0, fv))
+    mortar = s.math("MAXIMUM", joint_u, joint_v)
+    rnd = s.white_noise(s.combine(column, s.math("MODULO", row, 12.0), 3.0))
+    rnd2 = s.white_noise(s.combine(column, s.math("MODULO", row, 12.0), 7.0))
+    brick_color = s.ramp(rnd, [(0.0, (0.20, 0.07, 0.04)), (0.25, (0.33, 0.12, 0.07)), (0.7, (0.42, 0.18, 0.10)),
+                               (0.92, (0.46, 0.27, 0.16)), (1.0, (0.24, 0.16, 0.13))])
+    surface = s.noise(60, 5, 0.6).outputs["Fac"]
+    brick_color = s.mix(brick_color, (0.15, 0.07, 0.05), s.math("MULTIPLY", s.smoothstep(0.55, 0.8, surface), 0.4))
+    color = s.mix(brick_color, (0.40, 0.38, 0.34), mortar)
+    roughness = s.lerp(s.value(rnd2, 0.12, 0.78), 0.93, mortar)
+    height = s.math("SUBTRACT", s.value(surface, 0.2, 0.7), s.math("MULTIPLY", mortar, 0.6))
+    ao = s.lerp(1.0, 0.55, mortar)
+    return {"color": color, "roughness": roughness, "height": height, "ao": ao, "metallic": 0.0}
+
+
+def plaster(s):
+    """Heller Kratzputz (wird in Unreal per BaseColorTint eingefaerbt), mit feinen Laufspuren."""
+    grain = s.noise(140, 6, 0.65).outputs["Fac"]
+    trowel = s.noise(6, 4, 0.5).outputs["Fac"]
+    streaks = s.smoothstep(0.58, 0.75, s.noise_aniso(34.0, 2.0, 6, 0.55).outputs["Fac"])
+    color = s.mix((0.70, 0.69, 0.66), (0.80, 0.79, 0.76), trowel)
+    color = s.mix(color, (0.50, 0.49, 0.46), s.math("MULTIPLY", streaks, 0.35))
+    roughness = s.value(grain, 0.1, 0.84)
+    height = s.math("ADD", s.value(grain, 0.5, 0.3), s.math("MULTIPLY", trowel, 0.15))
+    return {"color": color, "roughness": roughness, "height": height, "ao": s.value(grain, 0.2, 0.8), "metallic": 0.0}
+
+
+def sandstone(s):
+    """Sandstein fuer Gesimse, Fensterfaschen, Eckquader."""
+    grains = s.noise(220, 4, 0.6).outputs["Fac"]
+    layers = s.noise_aniso(3.0, 18.0, 4, 0.5).outputs["Fac"]
+    weather = s.smoothstep(0.55, 0.75, s.noise(4, 5, 0.6).outputs["Fac"])
+    color = s.mix((0.50, 0.42, 0.31), (0.60, 0.52, 0.40), layers)
+    color = s.mix(color, (0.32, 0.29, 0.25), s.math("MULTIPLY", weather, 0.5))
+    roughness = s.value(grains, 0.12, 0.8)
+    height = s.math("ADD", s.value(grains, 0.35, 0.3), s.math("MULTIPLY", layers, 0.2))
+    return {"color": color, "roughness": roughness, "height": height, "ao": 1.0, "metallic": 0.0}
+
+
+def metal_panel(s):
+    """Dunkel eloxierte Metallpaneele (moderne Fassaden), leicht gebuerstet mit Schlieren."""
+    brushed = s.noise_aniso(400.0, 4.0, 3, 0.5).outputs["Fac"]
+    smudge = s.smoothstep(0.5, 0.75, s.noise(3, 5, 0.55).outputs["Fac"])
+    color = s.mix((0.055, 0.058, 0.062), (0.075, 0.078, 0.082), brushed)
+    roughness = s.lerp(s.value(brushed, 0.1, 0.3), 0.5, s.math("MULTIPLY", smudge, 0.6))
+    height = s.value(brushed, 0.1, 0.5)
+    return {"color": color, "roughness": roughness, "height": height, "ao": 1.0, "metallic": 0.85}
+
+
+def roof_gravel(s):
+    """Flachdach mit Kiesschuettung und Bitumenflecken."""
+    stones = s.voronoi(180, "F1")
+    stone_shape = s.math("SUBTRACT", 1.0, s.smoothstep(0.15, 0.5, stones.outputs["Distance"]))
+    stone_color = s.ramp(stones.outputs["Color"], [(0.0, (0.18, 0.17, 0.16)), (0.5, (0.32, 0.31, 0.29)), (1.0, (0.45, 0.43, 0.40))])
+    tar = s.smoothstep(0.6, 0.7, s.noise(5, 4, 0.5).outputs["Fac"])
+    color = s.mix((0.05, 0.05, 0.05), stone_color, stone_shape)
+    color = s.mix(color, (0.03, 0.03, 0.032), s.math("MULTIPLY", tar, 0.8))
+    roughness = s.lerp(0.9, 0.7, tar)
+    height = s.math("SUBTRACT", s.value(stone_shape, 0.6, 0.2), s.math("MULTIPLY", tar, 0.2))
+    return {"color": color, "roughness": roughness, "height": height, "ao": s.lerp(0.6, 1.0, stone_shape), "metallic": 0.0}
+
+
 SURFACES = {
     # Name: (Funktion, Kachelgroesse m, Aufloesung, Normal-Staerke, Unreal-Parameter)
     "Asphalt": (asphalt, 2.0, 2048, 1.0, {"porosity": 0.85, "wetness_response": 1.0, "puddle_response": 1.0}),
@@ -116,6 +189,13 @@ SURFACES = {
     "Granite": (granite, 1.0, 1024, 0.5, {"porosity": 0.35, "wetness_response": 1.0, "puddle_response": 0.0}),
     "CastIron": (cast_iron, 1.0, 1024, 0.8, {"porosity": 0.1, "wetness_response": 1.0, "puddle_response": 0.0}),
     "Wood": (weathered_wood, 1.0, 1024, 0.6, {"porosity": 0.7, "wetness_response": 1.0, "puddle_response": 0.0}),
+    "Brick": (brick, 1.0, 1024, 0.9, {"porosity": 0.7, "wetness_response": 1.0, "puddle_response": 0.0}),
+    # Putz: zwei Grundtoene; jedes Gebaeude mischt per Custom Primitive Data [1] ("TintBlend") dazwischen
+    "Plaster": (plaster, 1.5, 1024, 0.6, {"porosity": 0.55, "wetness_response": 0.8, "puddle_response": 0.0,
+                                          "tint": [1.0, 0.86, 0.66], "tint2": [0.82, 0.88, 0.9]}),
+    "Sandstone": (sandstone, 1.0, 1024, 0.6, {"porosity": 0.6, "wetness_response": 0.9, "puddle_response": 0.0}),
+    "MetalPanel": (metal_panel, 1.0, 1024, 0.3, {"porosity": 0.0, "wetness_response": 0.7, "puddle_response": 0.0}),
+    "RoofGravel": (roof_gravel, 1.5, 1024, 1.0, {"porosity": 0.8, "wetness_response": 1.0, "puddle_response": 1.0}),
 }
 
 
