@@ -1,0 +1,37 @@
+SPAR-PLAN - so holst du aus deinem Claude-Guthaben am meisten heraus
+=====================================================================
+
+EINSTELLUNGEN (in Claude Code "/model" eingeben)
+- Modell fuer Routinearbeit: Sonnet 5.5 - kostet nur HALB so viel wie Opus 5.5 und reicht fuer
+  Installieren, Kompilierfehler und Python-Fehler. Du bekommst damit etwa doppelt so viel Arbeit.
+- Opus 5.5 nur, wenn Sonnet an einem Problem zweimal scheitert oder Bilder/Grafik beurteilt werden sollen.
+- Denkstufe (Effort): "high" statt "max". Keinen Fast-Modus (kostet das Doppelte).
+- Zuerst dein Pro-Kontingent aufbrauchen - es fuellt sich nach einigen Stunden von selbst wieder auf
+  (Anzeige unter Einstellungen -> Nutzung). Das Extra-Guthaben nur nehmen, wenn du nicht warten willst.
+
+SO GEHT'S
+- Pro Arbeitspaket eine NEUE Sitzung starten (alte Sitzungen werden mit jeder Nachricht teurer,
+  weil Claude den ganzen bisherigen Verlauf mitliest).
+- In die Sitzung nur die kurze Zeile des Pakets einfuegen (unten). Beim allerersten Mal stattdessen
+  den kompletten Text aus PROMPT_FUER_CLAUDE.txt.
+- Wenn Claude "Paket fertig" meldet: Sitzung schliessen, neue starten, naechstes Paket.
+
+ARBEITSPAKETE (Zeile kopieren und in Claude Code einfuegen)
+
+Paket 1 - Vorbereitung (Modell: Sonnet 5.5)
+  Lies C:\VeyraBay\PROMPT_FUER_CLAUDE.txt (vor allem "SPARSAM ARBEITEN") und mache nur die Schritte 1 bis 3.
+
+Paket 2 - Kompilieren (Modell: Sonnet 5.5; braucht evtl. 2-3 Sitzungen)
+  Lies C:\VeyraBay\PROMPT_FUER_CLAUDE.txt Abschnitt "SPARSAM ARBEITEN" und Docs\PC_UEBERGABE.md "Stand". Mache nur Schritt 4 (kompilieren und Fehler beheben).
+
+Paket 3 - Setup und Stadt bauen (Modell: Sonnet 5.5)
+  Lies C:\VeyraBay\PROMPT_FUER_CLAUDE.txt Abschnitt "SPARSAM ARBEITEN" und Docs\PC_UEBERGABE.md "Stand". Mache nur Schritt 5.
+
+Paket 4 - Erster Test (Modell: Opus 5.5, weil Bilder beurteilt werden)
+  Lies C:\VeyraBay\PROMPT_FUER_CLAUDE.txt Abschnitt "SPARSAM ARBEITEN" und Docs\PC_UEBERGABE.md "Stand". Mache nur Schritt 6: Benchmark, hoechstens 6 Screenshots, und trage die 5 wichtigsten Probleme in "Stand" ein - noch nichts beheben.
+
+Paket 5 - Probleme beheben (Modell: Sonnet 5.5, bei schweren Fehlern Opus 5.5)
+  Lies C:\VeyraBay\PROMPT_FUER_CLAUDE.txt Abschnitt "SPARSAM ARBEITEN" und Docs\PC_UEBERGABE.md "Stand". Behebe die eingetragenen Probleme, eins nach dem anderen.
+
+Danach: Verbesserungen (je eine eigene Sitzung)
+  Lies C:\VeyraBay\PROMPT_FUER_CLAUDE.txt Abschnitt "SPARSAM ARBEITEN" und Docs\PC_UEBERGABE.md "Stand". Mache nur: <z. B. DLSS einbauen | Megascans-Texturen | Motion-Matching-Animationen | fps verbessern>.

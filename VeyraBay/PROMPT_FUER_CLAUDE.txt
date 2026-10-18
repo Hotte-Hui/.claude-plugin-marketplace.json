@@ -8,8 +8,23 @@ und cmd ausfuehren, Dateien im Projekt aendern, Unreal Engine per Kommandozeile 
 lesen und bewerten. Arbeite in kleinen, pruefbaren Schritten und protokolliere den Stand in Docs/PC_UEBERGABE.md
 (Abschnitt "Stand").
 
+SPARSAM ARBEITEN (ich bezahle jede Sitzung - bitte halte dich strikt daran):
+- Lies Dateien gezielt: erst Docs/PC_UEBERGABE.md (Abschnitt "Stand"), andere Doku nur die Abschnitte, die du
+  gerade brauchst. Keine ganzen Ordner oder grossen Dateien "zur Sicherheit" einlesen.
+- Build- und Unreal-Logs NIE komplett lesen. Leite die Ausgabe in eine Datei um und lies nur die Fehlerzeilen,
+  z. B. findstr /i /c:"error" /c:"Traceback" build.log  - und davon zuerst nur die ersten ca. 30.
+- Gleichartige Fehler (gleiche Ursache in mehreren Dateien) zusammen beheben, dann EINMAL neu bauen.
+- Lange Laeufe (Blender, Kompilieren, Stadtbau, HLODs) einfach laufen lassen und erst am Ende das Ergebnis
+  pruefen - nicht staendig nachsehen.
+- Nur so viel denken/schreiben wie noetig: keine langen Erklaerungen zwischendurch, kurze Statuszeilen genuegen.
+- Eine Sitzung = ein Arbeitspaket (siehe SPAR_PLAN.txt). Am Ende des Pakets IMMER in Docs/PC_UEBERGABE.md unter
+  "Stand" kurz eintragen: was erledigt ist, was als Naechstes kommt, offene Fehler (Datei + Zeile). So kann die
+  naechste Sitzung dort direkt weitermachen, ohne alles neu zu lesen. Danach mir sagen: "Paket fertig - neue
+  Sitzung starten."
+
 SOFORT, in dieser Reihenfolge:
-1. Lies Docs/PC_UEBERGABE.md, README.md und Docs/ROADMAP.md.
+1. Lies Docs/PC_UEBERGABE.md (zuerst "Stand" - ist dort schon etwas erledigt, mach dort weiter). README.md und
+   Docs/ROADMAP.md nur bei Bedarf und nur die passenden Abschnitte.
 2. Falls der Ordner SourceAssets\Export fehlt oder leer ist (kleiner Download ohne Modelle/Texturen/Klaenge):
    Installiere Blender 4.5 LTS (winget install BlenderFoundation.Blender.LTS.4.5) und Python 3
    (winget install Python.Python.3.12) und erzeuge alle Inhalte mit
