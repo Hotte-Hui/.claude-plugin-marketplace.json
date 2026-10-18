@@ -1,0 +1,18 @@
+{
+  "category": "Props",
+  "triangles": 1648,
+  "nanite": true,
+  "collision": "auto",
+  "slots": {
+    "CastIron": {
+      "surface": "CastIron",
+      "base_color": [
+        0.28,
+        0.28,
+        0.29
+      ],
+      "roughness": 0.5,
+      "metallic": 0.85
+    }
+  }
+}

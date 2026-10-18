@@ -1,0 +1,49 @@
+{
+  "category": "Buildings",
+  "triangles": 848,
+  "nanite": true,
+  "collision": "auto",
+  "puddle_response": 0.0,
+  "slots": {
+    "FacadeBrick": {
+      "surface": "Brick",
+      "base_color": [
+        0.36,
+        0.15,
+        0.09
+      ],
+      "roughness": 0.85,
+      "metallic": 0.0
+    },
+    "PaintSteelDark": {
+      "base_color": [
+        0.04,
+        0.045,
+        0.05
+      ],
+      "roughness": 0.4,
+      "metallic": 0.6,
+      "porosity": 0.0
+    },
+    "WindowGlass": {
+      "shared_material": "Window",
+      "base_color": [
+        0.02,
+        0.025,
+        0.03
+      ],
+      "roughness": 0.04,
+      "metallic": 0.0
+    },
+    "FacadeConcrete": {
+      "surface": "Concrete",
+      "base_color": [
+        0.36,
+        0.35,
+        0.33
+      ],
+      "roughness": 0.85,
+      "metallic": 0.0
+    }
+  }
+}

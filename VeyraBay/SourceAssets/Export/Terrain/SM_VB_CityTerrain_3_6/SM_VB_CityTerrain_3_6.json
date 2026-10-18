@@ -1,0 +1,18 @@
+{
+  "category": "Terrain",
+  "triangles": 22729,
+  "nanite": true,
+  "collision": "complex",
+  "slots": {
+    "Terrain": {
+      "shared_material": "Terrain",
+      "base_color": [
+        0.3,
+        0.3,
+        0.2
+      ],
+      "roughness": 0.9,
+      "metallic": 0.0
+    }
+  }
+}

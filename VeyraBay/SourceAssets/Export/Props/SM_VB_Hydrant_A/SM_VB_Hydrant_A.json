@@ -1,0 +1,28 @@
+{
+  "category": "Props",
+  "triangles": 5252,
+  "nanite": true,
+  "collision": "auto",
+  "slots": {
+    "PaintRed": {
+      "base_color": [
+        0.42,
+        0.035,
+        0.03
+      ],
+      "roughness": 0.4,
+      "metallic": 0.0,
+      "porosity": 0.05
+    },
+    "Steel": {
+      "base_color": [
+        0.6,
+        0.6,
+        0.62
+      ],
+      "roughness": 0.3,
+      "metallic": 1.0,
+      "porosity": 0.0
+    }
+  }
+}

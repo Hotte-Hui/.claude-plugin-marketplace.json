@@ -1,0 +1,29 @@
+{
+  "category": "Buildings",
+  "triangles": 139,
+  "nanite": true,
+  "collision": "auto",
+  "puddle_response": 0.0,
+  "slots": {
+    "FacadeBrick": {
+      "surface": "Brick",
+      "base_color": [
+        0.36,
+        0.15,
+        0.09
+      ],
+      "roughness": 0.85,
+      "metallic": 0.0
+    },
+    "FacadeConcrete": {
+      "surface": "Concrete",
+      "base_color": [
+        0.36,
+        0.35,
+        0.33
+      ],
+      "roughness": 0.85,
+      "metallic": 0.0
+    }
+  }
+}

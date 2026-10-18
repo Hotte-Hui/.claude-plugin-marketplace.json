@@ -1,0 +1,18 @@
+{
+  "category": "Props",
+  "triangles": 252,
+  "nanite": true,
+  "collision": "auto",
+  "slots": {
+    "PaintRailingWhite": {
+      "base_color": [
+        0.78,
+        0.78,
+        0.76
+      ],
+      "roughness": 0.35,
+      "metallic": 0.0,
+      "porosity": 0.0
+    }
+  }
+}

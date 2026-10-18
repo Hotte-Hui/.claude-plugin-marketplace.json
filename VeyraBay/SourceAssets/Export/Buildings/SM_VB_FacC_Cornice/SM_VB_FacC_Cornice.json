@@ -1,0 +1,19 @@
+{
+  "category": "Buildings",
+  "triangles": 88,
+  "nanite": true,
+  "collision": "auto",
+  "puddle_response": 0.0,
+  "slots": {
+    "FacadeMetalPanel": {
+      "surface": "MetalPanel",
+      "base_color": [
+        0.06,
+        0.062,
+        0.066
+      ],
+      "roughness": 0.3,
+      "metallic": 0.85
+    }
+  }
+}

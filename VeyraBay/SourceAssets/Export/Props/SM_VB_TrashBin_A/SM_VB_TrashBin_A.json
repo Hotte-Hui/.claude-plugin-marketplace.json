@@ -1,0 +1,28 @@
+{
+  "category": "Props",
+  "triangles": 4544,
+  "nanite": true,
+  "collision": "auto",
+  "slots": {
+    "PaintAnthracite": {
+      "base_color": [
+        0.045,
+        0.048,
+        0.05
+      ],
+      "roughness": 0.45,
+      "metallic": 0.0,
+      "porosity": 0.05
+    },
+    "Steel": {
+      "base_color": [
+        0.6,
+        0.6,
+        0.62
+      ],
+      "roughness": 0.3,
+      "metallic": 1.0,
+      "porosity": 0.0
+    }
+  }
+}

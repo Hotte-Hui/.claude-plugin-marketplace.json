@@ -1,0 +1,38 @@
+{
+  "category": "Props",
+  "triangles": 4200,
+  "nanite": true,
+  "collision": "auto",
+  "porosity": 0.05,
+  "puddle_response": 0.0,
+  "slots": {
+    "Paint": {
+      "base_color": [
+        0.16,
+        0.17,
+        0.18
+      ],
+      "roughness": 0.42,
+      "metallic": 0.0,
+      "porosity": 0.05,
+      "wetness_response": 1.0
+    },
+    "Lens": {
+      "base_color": [
+        0.85,
+        0.85,
+        0.82
+      ],
+      "roughness": 0.08,
+      "metallic": 0.0,
+      "emissive_color": [
+        1.0,
+        0.86,
+        0.68
+      ],
+      "emissive_intensity": 8000.0,
+      "use_night_switch": true,
+      "wetness_response": 0.0
+    }
+  }
+}

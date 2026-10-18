@@ -1,0 +1,29 @@
+{
+  "category": "Buildings",
+  "triangles": 269,
+  "nanite": true,
+  "collision": "auto",
+  "puddle_response": 0.0,
+  "slots": {
+    "FacadeSandstone": {
+      "surface": "Sandstone",
+      "base_color": [
+        0.55,
+        0.47,
+        0.36
+      ],
+      "roughness": 0.8,
+      "metallic": 0.0
+    },
+    "FacadePlaster": {
+      "surface": "Plaster",
+      "base_color": [
+        0.8,
+        0.72,
+        0.6
+      ],
+      "roughness": 0.85,
+      "metallic": 0.0
+    }
+  }
+}

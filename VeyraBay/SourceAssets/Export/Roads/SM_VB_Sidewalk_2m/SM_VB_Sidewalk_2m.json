@@ -1,0 +1,30 @@
+{
+  "category": "Roads",
+  "triangles": 4872,
+  "nanite": true,
+  "collision": "auto",
+  "puddle_response": 1.0,
+  "slots": {
+    "Paver": {
+      "surface": "Concrete",
+      "base_color": [
+        0.33,
+        0.32,
+        0.3
+      ],
+      "roughness": 0.88,
+      "metallic": 0.0
+    },
+    "PaverJoint": {
+      "base_color": [
+        0.09,
+        0.085,
+        0.08
+      ],
+      "roughness": 0.95,
+      "metallic": 0.0,
+      "porosity": 0.9,
+      "puddle_response": 0.0
+    }
+  }
+}

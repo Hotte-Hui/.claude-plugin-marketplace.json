@@ -1,0 +1,8 @@
+{
+  "surface": "CityTerrain",
+  "texture_only": true,
+  "extent_m": 3600.0,
+  "height_min_m": -30.0,
+  "height_range_m": 180.0,
+  "sea_level_m": -2.5
+}

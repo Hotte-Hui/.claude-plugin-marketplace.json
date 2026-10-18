@@ -1,0 +1,61 @@
+{
+  "category": "Roads",
+  "triangles": 121864,
+  "nanite": true,
+  "collision": "complex",
+  "puddle_response": 1.0,
+  "slots": {
+    "Asphalt": {
+      "surface": "Asphalt",
+      "base_color": [
+        0.05,
+        0.05,
+        0.052
+      ],
+      "roughness": 0.85,
+      "metallic": 0.0
+    },
+    "RoadPaint": {
+      "base_color": [
+        0.72,
+        0.72,
+        0.7
+      ],
+      "roughness": 0.5,
+      "metallic": 0.0,
+      "porosity": 0.15,
+      "puddle_response": 1.0
+    },
+    "CurbGranite": {
+      "surface": "Granite",
+      "base_color": [
+        0.3,
+        0.3,
+        0.3
+      ],
+      "roughness": 0.6,
+      "metallic": 0.0
+    },
+    "Paver": {
+      "surface": "Concrete",
+      "base_color": [
+        0.33,
+        0.32,
+        0.3
+      ],
+      "roughness": 0.88,
+      "metallic": 0.0
+    },
+    "PaverJoint": {
+      "base_color": [
+        0.09,
+        0.085,
+        0.08
+      ],
+      "roughness": 0.95,
+      "metallic": 0.0,
+      "porosity": 0.9,
+      "puddle_response": 0.0
+    }
+  }
+}

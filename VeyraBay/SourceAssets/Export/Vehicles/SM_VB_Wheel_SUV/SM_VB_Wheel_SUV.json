@@ -1,0 +1,28 @@
+{
+  "category": "Vehicles",
+  "triangles": 820,
+  "nanite": true,
+  "collision": "none",
+  "slots": {
+    "CarTire": {
+      "base_color": [
+        0.025,
+        0.025,
+        0.025
+      ],
+      "roughness": 0.88,
+      "metallic": 0.0,
+      "porosity": 0.2
+    },
+    "CarRim": {
+      "base_color": [
+        0.55,
+        0.56,
+        0.57
+      ],
+      "roughness": 0.25,
+      "metallic": 1.0,
+      "porosity": 0.0
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "category": "Sky",
+  "triangles": 3968,
+  "nanite": false,
+  "collision": "none",
+  "slots": {
+    "Stars": {
+      "base_color": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "roughness": 1.0,
+      "metallic": 0.0
+    }
+  }
+}

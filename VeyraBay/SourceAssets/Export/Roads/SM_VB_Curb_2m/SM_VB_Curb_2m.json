@@ -1,0 +1,19 @@
+{
+  "category": "Roads",
+  "triangles": 164,
+  "nanite": true,
+  "collision": "auto",
+  "puddle_response": 0.0,
+  "slots": {
+    "CurbGranite": {
+      "surface": "Granite",
+      "base_color": [
+        0.3,
+        0.3,
+        0.3
+      ],
+      "roughness": 0.6,
+      "metallic": 0.0
+    }
+  }
+}

@@ -1,0 +1,27 @@
+# Unreal Engine - lokal erzeugte Dateien
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+Build/
+.vs/
+.vscode/
+.idea/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# Blender-Backups
+*.blend1
+*.blend2
+
+# Python
+__pycache__/
+*.pyc
+
+# Gelaende-Quelldatei (deterministisch neu erzeugbar, ~18 MB)
+SourceAssets/Blender/VB_Coast.blend
+SourceAssets/Blender/VB_Vehicles.blend
